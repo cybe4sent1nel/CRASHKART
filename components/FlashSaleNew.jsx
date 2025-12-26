@@ -326,19 +326,19 @@ const FlashSaleNew = () => {
                                         </span>
                                     </div>
 
-                                    {/* Stock Info - Show "Only few left" badge when <= 5 */}
+                                    {/* Stock Info - Show "Only few left" badge only when in stock and qty <= 5 */}
                                      <div className='mb-4'>
-                                         {product.flashSaleQuantity > 5 && (
+                                         {!isOutOfStock && product.flashSaleQuantity > 5 && (
                                              <p className='text-xs font-semibold text-green-600'>
                                                  ✓ In Stock
                                              </p>
                                          )}
-                                         {product.flashSaleQuantity > 0 && product.flashSaleQuantity <= 5 && (
+                                         {!isOutOfStock && product.flashSaleQuantity > 0 && product.flashSaleQuantity <= 5 && (
                                              <p className='text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded inline-block'>
                                                  🔥 Hurry! Only few left
                                              </p>
                                          )}
-                                         {product.flashSaleQuantity === 0 && (
+                                         {isOutOfStock && (
                                              <p className='text-xs font-semibold text-red-600'>
                                                  Out of Stock
                                              </p>
