@@ -1,81 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Package, Tag, Gift, Megaphone, CheckCheck, Trash2, ArrowLeft, ShoppingBag, Heart, Coins, Settings } from 'lucide-react'
+import { Bell, Package, Tag, Gift, Megaphone, CheckCheck, Trash2, ArrowLeft, ShoppingBag, Heart, Coins, Settings, AlertTriangle, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import EmptyGhostAnimation from '@/components/animations/EmptyGhostAnimation'
-
-// Sample notifications data - in a real app, this would come from an API/database
-const sampleNotifications = [
-    {
-        id: 1,
-        type: 'order',
-        title: 'Order Shipped!',
-        message: 'Your order #ORD123ABC has been shipped and is on its way.',
-        time: '2 hours ago',
-        read: false,
-        iconType: 'package',
-        color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-500',
-        link: '/my-orders'
-    },
-    {
-        id: 2,
-        type: 'promo',
-        title: 'Flash Sale Live! 🔥',
-        message: 'Get up to 50% off on electronics. Limited time only!',
-        time: '5 hours ago',
-        read: false,
-        iconType: 'tag',
-        color: 'bg-red-100 dark:bg-red-900/30 text-red-500',
-        link: '/shop'
-    },
-    {
-        id: 3,
-        type: 'reward',
-        title: 'CrashCash Earned! 🎉',
-        message: 'You earned 50 CrashCash from your recent purchase.',
-        time: '1 day ago',
-        read: false,
-        iconType: 'coins',
-        color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-500',
-        link: '/crash-cash'
-    },
-    {
-        id: 4,
-        type: 'wishlist',
-        title: 'Price Drop Alert! 📉',
-        message: 'An item in your wishlist is now 30% off!',
-        time: '2 days ago',
-        read: true,
-        iconType: 'heart',
-        color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-500',
-        link: '/wishlist'
-    },
-    {
-        id: 5,
-        type: 'promo',
-        title: 'New Arrivals',
-        message: 'Check out the latest products added to our store.',
-        time: '3 days ago',
-        read: true,
-        iconType: 'shopping',
-        color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-500',
-        link: '/shop'
-    },
-    {
-        id: 6,
-        type: 'reward',
-        title: 'Welcome Bonus!',
-        message: 'Congratulations! You received 100 CrashCash as a welcome bonus.',
-        time: '1 week ago',
-        read: true,
-        iconType: 'gift',
-        color: 'bg-green-100 dark:bg-green-900/30 text-green-500',
-        link: '/crash-cash'
-    }
-]
 
 // Icon mapping function
 const getIcon = (iconType) => {
@@ -87,7 +17,11 @@ const getIcon = (iconType) => {
         shopping: ShoppingBag,
         gift: Gift,
         megaphone: Megaphone,
-        bell: Bell
+        bell: Bell,
+        success: Check,
+        error: AlertTriangle,
+        warning: AlertTriangle,
+        info: Bell
     }
     return icons[iconType] || Bell
 }
@@ -98,52 +32,123 @@ export default function Notifications() {
     const [filter, setFilter] = useState('all') // 'all', 'unread', 'read'
     const [loading, setLoading] = useState(true)
 
-    useEffect(() => {
-        // Load notifications from localStorage or use sample data
-        const savedNotifications = localStorage.getItem('notifications')
-        if (savedNotifications) {
-            setNotifications(JSON.parse(savedNotifications))
-        } else {
-            setNotifications(sampleNotifications)
-            localStorage.setItem('notifications', JSON.stringify(sampleNotifications))
+    // Get user ID from localStorage
+    const getUserId = () => {
+        if (typeof window !== 'undefined') {
+            const user = JSON.parse(localStorage.getItem('user') || '{}')
+            return user.id
         }
-        setLoading(false)
+        return null
+    }
+
+    // Fetch notifications from API
+    const fetchNotifications = async () => {
+        const userId = getUserId()
+        if (!userId) {
+            setLoading(false)
+            return
+        }
+
+        setLoading(true)
+        try {
+            const response = await fetch(`/api/notifications?userId=${userId}`)
+            const data = await response.json()
+
+            if (data.success) {
+                setNotifications(data.notifications)
+            }
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error)
+            toast.error('Failed to load notifications')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchNotifications()
     }, [])
 
-    const unreadCount = notifications.filter(n => !n.read).length
+    const unreadCount = notifications.filter(n => !n.isRead).length
 
     const filteredNotifications = notifications.filter(n => {
-        if (filter === 'unread') return !n.read
-        if (filter === 'read') return n.read
+        if (filter === 'unread') return !n.isRead
+        if (filter === 'read') return n.isRead
         return true
     })
 
-    const markAsRead = (id) => {
-        const updated = notifications.map(n => 
-            n.id === id ? { ...n, read: true } : n
-        )
-        setNotifications(updated)
-        localStorage.setItem('notifications', JSON.stringify(updated))
+    const markAsRead = async (id) => {
+        try {
+            const response = await fetch('/api/notifications', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notificationId: id }),
+            })
+
+            if (response.ok) {
+                fetchNotifications()
+            }
+        } catch (error) {
+            console.error('Failed to mark as read:', error)
+        }
     }
 
-    const markAllAsRead = () => {
-        const updated = notifications.map(n => ({ ...n, read: true }))
-        setNotifications(updated)
-        localStorage.setItem('notifications', JSON.stringify(updated))
-        toast.success('All notifications marked as read')
+    const markAllAsRead = async () => {
+        const userId = getUserId()
+        if (!userId) return
+
+        try {
+            const response = await fetch('/api/notifications', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, markAllAsRead: true }),
+            })
+
+            if (response.ok) {
+                toast.success('All notifications marked as read')
+                fetchNotifications()
+            }
+        } catch (error) {
+            console.error('Failed to mark all as read:', error)
+            toast.error('Failed to mark all as read')
+        }
     }
 
-    const deleteNotification = (id) => {
-        const updated = notifications.filter(n => n.id !== id)
-        setNotifications(updated)
-        localStorage.setItem('notifications', JSON.stringify(updated))
-        toast.success('Notification deleted')
+    const deleteNotification = async (id) => {
+        try {
+            const response = await fetch(`/api/notifications?id=${id}`, {
+                method: 'DELETE',
+            })
+
+            if (response.ok) {
+                toast.success('Notification deleted')
+                fetchNotifications()
+            }
+        } catch (error) {
+            console.error('Failed to delete notification:', error)
+            toast.error('Failed to delete notification')
+        }
     }
 
-    const clearAll = () => {
-        setNotifications([])
-        localStorage.setItem('notifications', JSON.stringify([]))
-        toast.success('All notifications cleared')
+    const clearAll = async () => {
+        const userId = getUserId()
+        if (!userId) return
+
+        if (!confirm('Are you sure you want to delete all read notifications?')) return
+
+        try {
+            const response = await fetch(`/api/notifications?userId=${userId}&deleteAll=true`, {
+                method: 'DELETE',
+            })
+
+            if (response.ok) {
+                toast.success('All read notifications cleared')
+                fetchNotifications()
+            }
+        } catch (error) {
+            console.error('Failed to clear notifications:', error)
+            toast.error('Failed to clear notifications')
+        }
     }
 
     const handleNotificationClick = (notification) => {
@@ -262,7 +267,19 @@ export default function Notifications() {
                     <AnimatePresence>
                         {filteredNotifications.length > 0 ? (
                             filteredNotifications.map((notification, index) => {
-                                const IconComponent = getIcon(notification.iconType)
+                                const IconComponent = getIcon(notification.type || 'info')
+                                
+                                // Get color based on type
+                                const getColorClass = (type) => {
+                                    const colors = {
+                                        success: 'bg-green-100 dark:bg-green-900/30 text-green-500',
+                                        error: 'bg-red-100 dark:bg-red-900/30 text-red-500',
+                                        warning: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-500',
+                                        info: 'bg-blue-100 dark:bg-blue-900/30 text-blue-500',
+                                    }
+                                    return colors[type] || colors.info
+                                }
+                                
                                 return (
                                     <motion.div
                                         key={notification.id}
@@ -271,13 +288,13 @@ export default function Notifications() {
                                         exit={{ opacity: 0, x: 20 }}
                                         transition={{ delay: index * 0.05 }}
                                         className={`bg-white dark:bg-slate-800 rounded-2xl shadow-md overflow-hidden group cursor-pointer transition-all hover:shadow-lg ${
-                                            !notification.read ? 'border-l-4 border-green-500' : ''
+                                            !notification.isRead ? 'border-l-4 border-green-500' : ''
                                         }`}
                                         onClick={() => handleNotificationClick(notification)}
                                     >
                                         <div className="p-4 flex gap-4">
                                             {/* Icon */}
-                                            <div className={`p-3 rounded-xl ${notification.color} flex-shrink-0`}>
+                                            <div className={`p-3 rounded-xl ${getColorClass(notification.type)} flex-shrink-0`}>
                                                 <IconComponent className="w-5 h-5" />
                                             </div>
 
@@ -285,19 +302,21 @@ export default function Notifications() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div>
-                                                        <h3 className={`font-semibold text-slate-800 dark:text-white ${!notification.read ? 'text-green-600 dark:text-green-400' : ''}`}>
+                                                        <h3 className={`font-semibold text-slate-800 dark:text-white ${!notification.isRead ? 'text-green-600 dark:text-green-400' : ''}`}>
                                                             {notification.title}
                                                         </h3>
                                                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
                                                             {notification.message}
                                                         </p>
                                                     </div>
-                                                    {!notification.read && (
+                                                    {!notification.isRead && (
                                                         <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-2"></span>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center justify-between mt-3">
-                                                    <span className="text-xs text-slate-400">{notification.time}</span>
+                                                    <span className="text-xs text-slate-400">
+                                                        {new Date(notification.createdAt).toLocaleString()}
+                                                    </span>
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()

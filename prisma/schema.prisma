@@ -16,6 +16,7 @@ model User {
     password         String?
     image            String?
     cart             Json      @default("{}")
+    crashCashBalance Float     @default(0) // CrashCash wallet balance
     isProfileSetup   Boolean   @default(false)
     isEmailVerified  Boolean   @default(false)
     isPhoneVerified  Boolean   @default(false)

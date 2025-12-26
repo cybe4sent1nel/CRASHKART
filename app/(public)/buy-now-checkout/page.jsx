@@ -11,12 +11,13 @@ import toast from 'react-hot-toast'
 
 export default function BuyNowCheckout() {
     const router = useRouter()
-    const addressList = useSelector(state => state.address.list)
     
     const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹'
 
     const [cartArray, setCartArray] = useState([])
     const [totalPrice, setTotalPrice] = useState(0)
+    const [addresses, setAddresses] = useState([])
+    const [loadingAddresses, setLoadingAddresses] = useState(false)
     const [selectedAddressId, setSelectedAddressId] = useState(null)
     const [showAddressForm, setShowAddressForm] = useState(false)
     const [couponCode, setCouponCode] = useState('')
@@ -63,15 +64,61 @@ export default function BuyNowCheckout() {
         loadBuyNowData()
     }, [router])
     
+    // Fetch addresses from API
+    useEffect(() => {
+        const fetchAddresses = async () => {
+            setLoadingAddresses(true)
+            try {
+                const userData = localStorage.getItem('user')
+                if (!userData) {
+                    console.error('No user data found')
+                    setLoadingAddresses(false)
+                    return
+                }
+                
+                const user = JSON.parse(userData)
+                const email = user.email
+                
+                if (!email) {
+                    console.error('No email found in user data')
+                    setLoadingAddresses(false)
+                    return
+                }
+                
+                const token = localStorage.getItem('token')
+                const response = await fetch('/api/user/addresses', {
+                    headers: {
+                        'x-user-email': email,
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    }
+                })
+
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('Buy Now Checkout - Fetched addresses:', data)
+                    setAddresses(data.addresses || [])
+                } else {
+                    const errorText = await response.text()
+                    console.error('Failed to fetch addresses:', response.status, errorText)
+                }
+            } catch (error) {
+                console.error('Error fetching addresses:', error)
+            } finally {
+                setLoadingAddresses(false)
+            }
+        }
+
+        fetchAddresses()
+    }, [])
 
 
     // Auto-select first address
     useEffect(() => {
-       if (addressList && addressList.length > 0 && !selectedAddressId) {
-           const defaultAddr = addressList.find(addr => addr.isDefault) || addressList[0]
+       if (addresses && addresses.length > 0 && !selectedAddressId) {
+           const defaultAddr = addresses.find(addr => addr.isDefault) || addresses[0]
            setSelectedAddressId(defaultAddr.id)
        }
-    }, [addressList, selectedAddressId])
+    }, [addresses, selectedAddressId])
 
     // Load phone number from user profile
     useEffect(() => {
@@ -92,7 +139,7 @@ export default function BuyNowCheckout() {
        }
     }, [])
 
-    const selectedAddress = addressList?.find(a => a.id === selectedAddressId)
+    const selectedAddress = addresses?.find(a => a.id === selectedAddressId)
 
     const handleApplyCoupon = () => {
         setCouponError('')
@@ -369,7 +416,7 @@ export default function BuyNowCheckout() {
                                         </div>
                                     </div>
 
-                                    {addressList.length > 1 && (
+                                    {addresses.length > 1 && (
                                         <div>
                                             <label className="text-sm text-slate-600 dark:text-slate-400 mb-2 block">Change Address</label>
                                             <select
@@ -377,7 +424,7 @@ export default function BuyNowCheckout() {
                                                 onChange={(e) => setSelectedAddressId(e.target.value)}
                                                 className="w-full px-4 py-3 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg"
                                             >
-                                                {addressList.map(addr => (
+                                                {addresses.map(addr => (
                                                     <option key={addr.id} value={addr.id}>
                                                         {addr.name} - {addr.city}
                                                     </option>
@@ -485,9 +532,40 @@ export default function BuyNowCheckout() {
                         {/* Address Form Modal */}
             {showAddressForm && (
                 <AddressForm
-                    onSave={() => {
+                    onSave={async () => {
                         setShowAddressForm(false)
                         toast.success('Address added successfully!')
+                        // Refresh addresses list
+                        try {
+                            setLoadingAddresses(true)
+                            const userData = localStorage.getItem('user')
+                            if (userData) {
+                                const user = JSON.parse(userData)
+                                const email = user.email
+                                
+                                const token = localStorage.getItem('token')
+                                const response = await fetch('/api/user/addresses', {
+                                    headers: {
+                                        'x-user-email': email,
+                                        ...(token && { 'Authorization': `Bearer ${token}` })
+                                    }
+                                })
+
+                                if (response.ok) {
+                                    const data = await response.json()
+                                    setAddresses(data.addresses || [])
+                                    // Auto-select the newly added address (usually the last one)
+                                    if (data.addresses && data.addresses.length > 0) {
+                                        const newAddress = data.addresses[data.addresses.length - 1]
+                                        setSelectedAddressId(newAddress.id)
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error refreshing addresses:', error)
+                        } finally {
+                            setLoadingAddresses(false)
+                        }
                     }}
                     onClose={() => setShowAddressForm(false)}
                 />

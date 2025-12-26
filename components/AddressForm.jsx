@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { X, MapPin, Phone, Mail, User, Star } from 'lucide-react'
 import NeonCheckbox from '@/components/NeonCheckbox'
 import FreeLocationPicker from '@/components/FreeLocationPicker'
+import toast from 'react-hot-toast'
 
 export default function AddressForm({ onSave, onClose, initialData = null }) {
     const [formData, setFormData] = useState(initialData || {
@@ -56,10 +57,58 @@ export default function AddressForm({ onSave, onClose, initialData = null }) {
         setShowLocationPicker(false)
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
-        if (validateForm()) {
-            onSave(formData)
+        if (!validateForm()) {
+            return
+        }
+
+        try {
+            // Get user email from localStorage
+            const userData = localStorage.getItem('user')
+            if (!userData) {
+                toast.error('Please login to save address')
+                return
+            }
+            
+            const user = JSON.parse(userData)
+            const email = user.email
+
+            // Save address to database
+            const response = await fetch('/api/user/addresses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-email': email
+                },
+                body: JSON.stringify({
+                    name: formData.name,
+                    email: formData.email || email,
+                    phone: formData.phone,
+                    street: formData.street,
+                    city: formData.city,
+                    state: formData.state,
+                    zip: formData.zipCode,
+                    country: formData.country || 'India',
+                    isDefault: formData.isDefault || false,
+                    latitude: formData.latitude,
+                    longitude: formData.longitude
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                throw new Error(error.error || 'Failed to save address')
+            }
+
+            const savedAddress = await response.json()
+            toast.success('Address saved successfully!')
+            
+            // Call the onSave callback with the saved address
+            onSave(savedAddress)
+        } catch (error) {
+            console.error('Error saving address:', error)
+            toast.error(error.message || 'Failed to save address')
         }
     }
 

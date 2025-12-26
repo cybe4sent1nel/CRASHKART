@@ -42,24 +42,33 @@ export default function Navbar() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const router = useRouter();
 
-  // Check for unread notifications
+  // Check for unread notifications from API
   useEffect(() => {
-    const checkNotifications = () => {
-      const savedNotifications = localStorage.getItem('notifications')
-      if (savedNotifications) {
-        const notifications = JSON.parse(savedNotifications)
-        const hasUnread = notifications.some(n => !n.read)
-        setHasUnreadNotifications(hasUnread)
-      } else {
-        // If no notifications exist, set default ones with unread status
-        setHasUnreadNotifications(true)
+    const checkNotifications = async () => {
+      const userData = localStorage.getItem('user')
+      if (!userData) return
+      
+      try {
+        const user = JSON.parse(userData)
+        const userId = user.id
+        
+        if (!userId) return
+        
+        const response = await fetch(`/api/notifications?userId=${userId}&unreadOnly=true`)
+        const data = await response.json()
+        
+        if (data.success) {
+          setHasUnreadNotifications(data.unreadCount > 0)
+        }
+      } catch (error) {
+        console.error('Failed to check notifications:', error)
       }
     }
     
     checkNotifications()
     
-    // Check periodically for notification updates
-    const interval = setInterval(checkNotifications, 1000)
+    // Check periodically for notification updates every 30 seconds
+    const interval = setInterval(checkNotifications, 30000)
     
     return () => clearInterval(interval)
   }, [])

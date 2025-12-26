@@ -14,6 +14,8 @@ export default function Profile() {
     const [isEditing, setIsEditing] = useState(false)
     const [loading, setLoading] = useState(false)
     const [showAddressForm, setShowAddressForm] = useState(false)
+    const [addresses, setAddresses] = useState([])
+    const [loadingAddresses, setLoadingAddresses] = useState(false)
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -50,14 +52,90 @@ export default function Profile() {
             if (savedNotifications) {
                 setNotifications(JSON.parse(savedNotifications))
             }
+            // Fetch addresses
+            fetchAddresses()
         }
     }, [router])
+
+    const fetchAddresses = async () => {
+        setLoadingAddresses(true)
+        try {
+            const userData = localStorage.getItem('user')
+            if (!userData) {
+                setLoadingAddresses(false)
+                return
+            }
+            
+            const user = JSON.parse(userData)
+            const email = user.email
+            
+            if (!email) {
+                setLoadingAddresses(false)
+                return
+            }
+            
+            const token = localStorage.getItem('token')
+            const response = await fetch('/api/user/addresses', {
+                headers: {
+                    'x-user-email': email,
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                setAddresses(data.addresses || [])
+            }
+        } catch (error) {
+            console.error('Error fetching addresses:', error)
+        } finally {
+            setLoadingAddresses(false)
+        }
+    }
 
     const handleNotificationChange = (key) => {
         const newNotifications = { ...notifications, [key]: !notifications[key] }
         setNotifications(newNotifications)
         localStorage.setItem('notificationPreferences', JSON.stringify(newNotifications))
         toast.success('Notification preference updated!')
+    }
+
+    const handleDeleteAddress = async (addressId) => {
+        if (!confirm('Are you sure you want to delete this address?')) {
+            return
+        }
+
+        try {
+            const userData = localStorage.getItem('user')
+            if (!userData) {
+                toast.error('Please login to delete address')
+                return
+            }
+
+            const user = JSON.parse(userData)
+            const email = user.email
+
+            const token = localStorage.getItem('token')
+            const response = await fetch(`/api/user/addresses?id=${addressId}`, {
+                method: 'DELETE',
+                headers: {
+                    'x-user-email': email,
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            })
+
+            if (response.ok) {
+                toast.success('Address deleted successfully!')
+                // Refresh addresses list
+                fetchAddresses()
+            } else {
+                const error = await response.json()
+                toast.error(error.error || 'Failed to delete address')
+            }
+        } catch (error) {
+            console.error('Error deleting address:', error)
+            toast.error('Failed to delete address')
+        }
     }
 
     const handleChange = (e) => {
@@ -366,6 +444,89 @@ export default function Profile() {
                     </div>
                 </motion.div>
 
+                {/* Saved Addresses */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.23 }}
+                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden mt-6"
+                >
+                    <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                                <MapPin className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
+                                Saved Addresses
+                            </h2>
+                        </div>
+                        <button
+                            onClick={() => setShowAddressForm(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition font-medium"
+                        >
+                            <MapPin size={16} />
+                            Add New
+                        </button>
+                    </div>
+
+                    <div className="p-6">
+                        {loadingAddresses ? (
+                            <div className="flex justify-center py-8">
+                                <div className="w-8 h-8 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin"></div>
+                            </div>
+                        ) : addresses.length === 0 ? (
+                            <div className="text-center py-12">
+                                <MapPin className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                                <p className="text-slate-500 dark:text-slate-400 mb-4">No saved addresses yet</p>
+                                <button
+                                    onClick={() => setShowAddressForm(true)}
+                                    className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition"
+                                >
+                                    Add Your First Address
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                {addresses.map((address) => (
+                                    <div 
+                                        key={address.id}
+                                        className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-red-500 transition"
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <MapPin className="w-4 h-4 text-red-500" />
+                                                <span className="font-semibold text-slate-800 dark:text-white">{address.type || 'Address'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {address.isDefault && (
+                                                    <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs rounded-full">
+                                                        Default
+                                                    </span>
+                                                )}
+                                                <button
+                                                    onClick={() => handleDeleteAddress(address.id)}
+                                                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition group"
+                                                    title="Delete address"
+                                                >
+                                                    <X className="w-4 h-4 text-slate-400 group-hover:text-red-500 transition" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">{address.name}</p>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
+                                            {address.street}, {address.city}, {address.state} {address.zip}
+                                        </p>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                                            <Phone className="w-3 h-3 inline mr-1" />
+                                            {address.phone}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </motion.div>
+
                 {/* Notification Preferences */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -520,13 +681,11 @@ export default function Profile() {
             {/* Address Form Modal with Location Picker */}
             {showAddressForm && (
                 <AddressForm
-                    onSave={(addressData) => {
-                        setFormData(prev => ({
-                            ...prev,
-                            address: addressData.street
-                        }))
+                    onSave={() => {
                         setShowAddressForm(false)
-                        toast.success('Address updated from map!')
+                        toast.success('Address saved successfully!')
+                        // Refresh addresses list
+                        fetchAddresses()
                     }}
                     onClose={() => setShowAddressForm(false)}
                 />

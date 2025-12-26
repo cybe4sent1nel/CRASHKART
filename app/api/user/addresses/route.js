@@ -31,7 +31,7 @@ export async function GET(req) {
             ]
         });
 
-        return NextResponse.json(addresses);
+        return NextResponse.json({ addresses });
     } catch (error) {
         console.error('Error fetching addresses:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -82,10 +82,10 @@ export async function POST(req) {
 
         // If this is set as default, unset other defaults
         if (isDefault) {
-            await prisma.address.updateMany(
-                { where: { userId, isDefault: true } },
-                { data: { isDefault: false } }
-            );
+            await prisma.address.updateMany({
+                where: { userId, isDefault: true },
+                data: { isDefault: false }
+            });
         }
 
         const address = await prisma.address.create({
@@ -237,6 +237,18 @@ export async function DELETE(req) {
             return NextResponse.json(
                 { error: 'Not authorized to delete this address' },
                 { status: 403 }
+            );
+        }
+
+        // Check if address is used in any orders
+        const ordersWithAddress = await prisma.order.findFirst({
+            where: { addressId: addressId }
+        });
+
+        if (ordersWithAddress) {
+            return NextResponse.json(
+                { error: 'Cannot delete address that is used in existing orders' },
+                { status: 400 }
             );
         }
 

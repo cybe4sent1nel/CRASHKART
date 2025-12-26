@@ -57,30 +57,37 @@ function PlaceOrderContent() {
             migrateUserData(email)
             initializeUserProfile(email, user)
             
-            // Load user-specific addresses
-            const userAddresses = getUserAddresses(email)
-            if (userAddresses && userAddresses.length > 0) {
-                setAddresses(userAddresses)
-                // Auto-select first address
-                if (!selectedAddressId) {
-                    setSelectedAddressId(userAddresses[0].id)
+            // Fetch addresses from API
+            const fetchAddresses = async () => {
+                try {
+                    const token = localStorage.getItem('token')
+                    const response = await fetch('/api/user/addresses', {
+                        headers: {
+                            'x-user-email': email,
+                            ...(token && { 'Authorization': `Bearer ${token}` })
+                        }
+                    })
+
+                    if (response.ok) {
+                        const data = await response.json()
+                        if (data.addresses && data.addresses.length > 0) {
+                            setAddresses(data.addresses)
+                            // Auto-select first address or default
+                            if (!selectedAddressId) {
+                                const defaultAddr = data.addresses.find(addr => addr.isDefault) || data.addresses[0]
+                                setSelectedAddressId(defaultAddr.id)
+                            }
+                        } else {
+                            // No addresses in database, show empty state
+                            setAddresses([])
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching addresses:', error)
                 }
-            } else {
-                // Create demo address if user has none
-                const demoAddress = {
-                    id: 'demo_1',
-                    name: 'John Doe (Demo)',
-                    email: 'john.doe@example.com',
-                    phone: '+1 (555) 123-4567',
-                    street: '123 Main Street, Apt 4B',
-                    city: 'New York',
-                    state: 'NY',
-                    zipCode: '10001',
-                    country: 'United States'
-                }
-                setAddresses([demoAddress])
-                setSelectedAddressId(demoAddress.id)
             }
+            
+            fetchAddresses()
 
             // Load user's crash cash (per-user)
             // Migrate old crash cash on first load
@@ -126,16 +133,39 @@ function PlaceOrderContent() {
         return 0
     }
 
-    const handleAddAddress = (addressData) => {
-        const newAddress = {
-            ...addressData,
-            id: Date.now().toString()
-        }
-        const updatedAddresses = [...addresses, newAddress]
-        setAddresses(updatedAddresses)
-        localStorage.setItem('userAddresses', JSON.stringify(updatedAddresses))
-        setSelectedAddressId(newAddress.id)
+    const handleAddAddress = async (addressData) => {
+        // The AddressForm component already handles the API call
+        // Just refresh the addresses list and close the form
         setShowAddressForm(false)
+        
+        // Refresh addresses from API
+        try {
+            const userData = localStorage.getItem('user')
+            if (userData) {
+                const user = JSON.parse(userData)
+                const email = user.email
+                const token = localStorage.getItem('token')
+                
+                const response = await fetch('/api/user/addresses', {
+                    headers: {
+                        'x-user-email': email,
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    }
+                })
+
+                if (response.ok) {
+                    const data = await response.json()
+                    if (data.addresses && data.addresses.length > 0) {
+                        setAddresses(data.addresses)
+                        // Auto-select the newly added address (usually the last one)
+                        const newAddress = data.addresses[data.addresses.length - 1]
+                        setSelectedAddressId(newAddress.id)
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing addresses:', error)
+        }
     }
 
     const handleApplyCoupon = () => {

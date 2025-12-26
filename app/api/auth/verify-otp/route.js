@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
+import { sendWelcomeEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -67,7 +68,7 @@ export async function POST(request) {
             }
         });
 
-        // If user doesn't exist (signup flow), create them
+        // If user doesn't exist (signup flow), create them with welcome bonus
         if (!user) {
             user = await client.user.create({
                 data: {
@@ -76,7 +77,8 @@ export async function POST(request) {
                     phone: otpSession.method === 'whatsapp' ? otpSession.contact : null,
                     name: '',
                     isProfileSetup: false,
-                    loginMethod: otpSession.method === 'email' ? 'email' : 'whatsapp'
+                    loginMethod: otpSession.method === 'email' ? 'email' : 'whatsapp',
+                    crashCashBalance: 100 // Welcome bonus of 100 CrashCash
                 },
                 select: {
                     id: true,
@@ -86,13 +88,41 @@ export async function POST(request) {
                     image: true,
                     isProfileSetup: true,
                     loginMethod: true,
-                    createdAt: true
+                    createdAt: true,
+                    crashCashBalance: true
+                }
+            });
+        } else {
+            // For existing users, fetch crashCashBalance
+            user = await client.user.findUnique({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    image: true,
+                    isProfileSetup: true,
+                    loginMethod: true,
+                    createdAt: true,
+                    crashCashBalance: true
                 }
             });
         }
 
         // Check if user is new (created less than 1 minute ago)
         const isNewUser = user.createdAt && (Date.now() - new Date(user.createdAt).getTime()) < 60000;
+
+        // Send welcome email for new users
+        if (isNewUser && user.email) {
+            try {
+                await sendWelcomeEmail(user.email, user.name || 'User', 100);
+                console.log('Welcome email sent to:', user.email);
+            } catch (emailError) {
+                console.error('Failed to send welcome email:', emailError);
+                // Continue even if email fails
+            }
+        }
 
         // Generate JWT token
         const token = jwt.sign(

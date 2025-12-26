@@ -12,6 +12,7 @@ import ShoppingBagAnimation from "./animations/ShoppingBagAnimation";
 import SellerStoreCard from "./SellerStoreCard";
 import OutOfStockDisplay from "./OutOfStockDisplay";
 import { toast } from "react-hot-toast";
+import CrashCashCard from "./CrashCashCard";
 
 const ProductDetails = ({ product, flashSaleData }) => {
 
@@ -323,6 +324,9 @@ const ProductDetails = ({ product, flashSaleData }) => {
                     </div>
                 </div>
 
+                {/* CrashCash Earning Card */}
+                <CrashCashCard product={product} />
+
                 {/* Hurry Only Few Left Alert - Show only when stock > 0 AND stock <= 5 */}
                 {product.quantity > 0 && product.quantity <= 5 && (
                     <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 my-6 flex items-center gap-3">
@@ -383,10 +387,11 @@ const ProductDetails = ({ product, flashSaleData }) => {
                         )}
                     </div>
                 </div>
-                <hr className="border-gray-300 my-5" />
                 
                 {/* Crash Cash Reward Section */}
-                {product.crashCashValue && (
+                {product.crashCashValue && product.crashCashValue > 0 && (
+                    <>
+                    <hr className="border-gray-300 my-5" />
                     <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 mb-6">
                         <div className="flex items-center gap-2 mb-2">
                             <img src="/crashcash.ico" alt="Crash Cash" className="w-6 h-6" />
@@ -395,7 +400,10 @@ const ProductDetails = ({ product, flashSaleData }) => {
                         <p className="text-amber-900 font-semibold text-lg">Get up to {currency}{product.crashCashValue} Crash Cash</p>
                         <p className="text-sm text-amber-800 mt-2">Use it as a discount code on your next purchase. Expires in 30 days from order date.</p>
                     </div>
+                    </>
                 )}
+                
+                <hr className="border-gray-300 my-5" />
 
                 {/* Offers Section */}
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">

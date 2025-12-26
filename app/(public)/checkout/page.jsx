@@ -15,12 +15,13 @@ export default function Checkout() {
     const router = useRouter()
     const cartItems = useSelector(state => state?.cart?.cartItems || {})
     const products = useSelector(state => state.product.list)
-    const addressList = useSelector(state => state.address.list)
 
     const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹'
 
     const [cartArray, setCartArray] = useState([])
     const [totalPrice, setTotalPrice] = useState(0)
+    const [addresses, setAddresses] = useState([])
+    const [loadingAddresses, setLoadingAddresses] = useState(false)
     const [selectedAddressId, setSelectedAddressId] = useState(null)
     const [showAddressForm, setShowAddressForm] = useState(false)
     const [couponCode, setCouponCode] = useState('')
@@ -30,6 +31,9 @@ export default function Checkout() {
     const [mobileError, setMobileError] = useState('')
     const [isEditingPhone, setIsEditingPhone] = useState(false)
     const [phoneFromProfile, setPhoneFromProfile] = useState(null)
+    const [crashCashBalance, setCrashCashBalance] = useState(0)
+    const [crashCashToUse, setCrashCashToUse] = useState(0)
+    const [appliedCrashCash, setAppliedCrashCash] = useState(0)
 
     // Load cart data only (not Buy Now)
     useEffect(() => {
@@ -77,15 +81,62 @@ export default function Checkout() {
         loadCartData()
     }, [router]) // Added router to deps
 
+    // Fetch addresses from API
+    useEffect(() => {
+        const fetchAddresses = async () => {
+            setLoadingAddresses(true)
+            try {
+                const userData = localStorage.getItem('user')
+                if (!userData) {
+                    console.error('No user data found')
+                    setLoadingAddresses(false)
+                    return
+                }
+                
+                const user = JSON.parse(userData)
+                const email = user.email
+                
+                if (!email) {
+                    console.error('No email found in user data')
+                    setLoadingAddresses(false)
+                    return
+                }
+                
+                const token = localStorage.getItem('token')
+                const response = await fetch('/api/user/addresses', {
+                    headers: {
+                        'x-user-email': email,
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    }
+                })
+
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('Checkout - Fetched addresses:', data)
+                    setAddresses(data.addresses || [])
+                } else {
+                    const errorText = await response.text()
+                    console.error('Failed to fetch addresses:', response.status, errorText)
+                }
+            } catch (error) {
+                console.error('Error fetching addresses:', error)
+            } finally {
+                setLoadingAddresses(false)
+            }
+        }
+
+        fetchAddresses()
+    }, [])
+
     // Auto-select first address
     useEffect(() => {
-        if (addressList && addressList.length > 0 && !selectedAddressId) {
-            const defaultAddr = addressList.find(addr => addr.isDefault) || addressList[0]
+        if (addresses && addresses.length > 0 && !selectedAddressId) {
+            const defaultAddr = addresses.find(addr => addr.isDefault) || addresses[0]
             setSelectedAddressId(defaultAddr.id)
         }
-    }, [addressList, selectedAddressId])
+    }, [addresses, selectedAddressId])
 
-    // Load phone number from user profile
+    // Load phone number from user profile and CrashCash balance
     useEffect(() => {
         const userData = localStorage.getItem('user')
         if (userData) {
@@ -98,13 +149,42 @@ export default function Checkout() {
                         setMobileNumber(user.phone)
                     }
                 }
+                // Set CrashCash balance
+                if (user.crashCashBalance !== undefined) {
+                    setCrashCashBalance(user.crashCashBalance || 0)
+                }
+                // Fetch latest CrashCash balance from API
+                fetchCrashCashBalance(user.email)
             } catch (err) {
                 console.error('Error loading user profile:', err)
             }
         }
     }, [])
 
-    const selectedAddress = addressList?.find(a => a.id === selectedAddressId)
+    const fetchCrashCashBalance = async (email) => {
+        try {
+            const token = localStorage.getItem('token')
+            const response = await fetch(`/api/user/profile?email=${email}`, {
+                headers: {
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            })
+            if (response.ok) {
+                const userData = await response.json()
+                if (userData.crashCashBalance !== undefined) {
+                    setCrashCashBalance(userData.crashCashBalance || 0)
+                    // Update localStorage
+                    const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
+                    currentUser.crashCashBalance = userData.crashCashBalance
+                    localStorage.setItem('user', JSON.stringify(currentUser))
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching CrashCash balance:', error)
+        }
+    }
+
+    const selectedAddress = addresses?.find(a => a.id === selectedAddressId)
 
     const handleApplyCoupon = () => {
         setCouponError('')
@@ -127,6 +207,34 @@ export default function Checkout() {
         setCouponCode('')
     }
 
+    const handleApplyCrashCash = () => {
+        const amount = Number(crashCashToUse)
+        if (isNaN(amount) || amount <= 0) {
+            toast.error('Please enter a valid amount')
+            return
+        }
+        if (amount > crashCashBalance) {
+            toast.error(`You only have ₹${crashCashBalance} CrashCash available`)
+            return
+        }
+        // Calculate remaining amount after coupon discount
+        let remainingTotal = totalPrice
+        if (appliedCoupon) {
+            remainingTotal -= appliedCoupon.discount
+        }
+        if (amount > remainingTotal) {
+            toast.error(`Maximum ₹${remainingTotal} can be applied to this order`)
+            return
+        }
+        setAppliedCrashCash(amount)
+        toast.success(`₹${amount} CrashCash applied successfully!`)
+    }
+
+    const handleRemoveCrashCash = () => {
+        setAppliedCrashCash(0)
+        setCrashCashToUse(0)
+    }
+
     const validateMobileNumber = () => {
         const cleaned = mobileNumber.replace(/\D/g, '')
         if (cleaned.length < 10) {
@@ -141,6 +249,9 @@ export default function Checkout() {
         let total = totalPrice
         if (appliedCoupon) {
             total -= appliedCoupon.discount
+        }
+        if (appliedCrashCash > 0) {
+            total -= appliedCrashCash
         }
         return Math.max(0, total)
     }
@@ -166,6 +277,7 @@ export default function Checkout() {
               selectedAddressId,
               mobileNumber,
               appliedCoupon,
+              appliedCrashCash,
               items: cartArray.map(item => ({
                   ...item,
                   // Ensure storeId is included (required for order creation)
@@ -173,6 +285,7 @@ export default function Checkout() {
               })),
               subtotal: totalPrice,
               discount: appliedCoupon?.discount || 0,
+              crashCashDiscount: appliedCrashCash,
               total: getTotalAfterDiscount(),
               isBuyNow: false
           }
@@ -361,6 +474,75 @@ export default function Checkout() {
                             )}
                         </div>
 
+                        {/* CrashCash Section - Like Flipkart SuperCoin */}
+                        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-950/20 dark:to-yellow-950/20 rounded-3xl shadow-lg p-8 border-2 border-orange-200 dark:border-orange-800">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl">
+                                    <img src="/crashcash.ico" alt="CrashCash" className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Use CrashCash</h2>
+                                    <p className="text-sm text-orange-700 dark:text-orange-300">Available: ₹{crashCashBalance.toFixed(2)}</p>
+                                </div>
+                            </div>
+
+                            {appliedCrashCash === 0 ? (
+                                <div className="space-y-3">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            value={crashCashToUse}
+                                            onChange={(e) => setCrashCashToUse(Math.max(0, Number(e.target.value)))}
+                                            placeholder={`Enter amount (Max: ₹${Math.min(crashCashBalance, getTotalAfterDiscount() + appliedCrashCash)})`}
+                                            max={Math.min(crashCashBalance, getTotalAfterDiscount() + appliedCrashCash)}
+                                            className="flex-1 px-4 py-3 border-2 border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-orange-600"
+                                        />
+                                        <button
+                                            onClick={handleApplyCrashCash}
+                                            className="px-6 py-3 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-bold rounded-lg hover:from-orange-600 hover:to-yellow-600 transition shadow-lg"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {[50, 100, 200].filter(amt => amt <= crashCashBalance && amt <= (getTotalAfterDiscount() + appliedCrashCash)).map(amount => (
+                                            <button
+                                                key={amount}
+                                                onClick={() => {
+                                                    setCrashCashToUse(amount)
+                                                    setAppliedCrashCash(amount)
+                                                    toast.success(`₹${amount} CrashCash applied!`)
+                                                }}
+                                                className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition text-sm font-semibold"
+                                            >
+                                                Use ₹{amount}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-orange-700 dark:text-orange-300 flex items-start gap-1">
+                                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                                        </svg>
+                                        <span>CrashCash is instant discount money in your wallet. Use it just like Flipkart SuperCoins!</span>
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between bg-gradient-to-r from-orange-100 to-yellow-100 dark:from-orange-900/30 dark:to-yellow-900/30 p-4 rounded-lg border-2 border-orange-300 dark:border-orange-700">
+                                    <div>
+                                        <p className="text-sm text-orange-700 dark:text-orange-300">CrashCash Applied</p>
+                                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">-₹{appliedCrashCash.toFixed(2)}</p>
+                                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Remaining: ₹{(crashCashBalance - appliedCrashCash).toFixed(2)}</p>
+                                    </div>
+                                    <button
+                                        onClick={handleRemoveCrashCash}
+                                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-lg"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Delivery Address */}
                         <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg p-8">
                             <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
@@ -397,7 +579,7 @@ export default function Checkout() {
                                         </div>
                                     </div>
 
-                                    {addressList.length > 1 && (
+                                    {addresses.length > 1 && (
                                         <div>
                                             <label className="text-sm text-slate-600 dark:text-slate-400 mb-2 block">Change Address</label>
                                             <select
@@ -405,7 +587,7 @@ export default function Checkout() {
                                                 onChange={(e) => setSelectedAddressId(e.target.value)}
                                                 className="w-full px-4 py-3 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg"
                                             >
-                                                {addressList.map(addr => (
+                                                {addresses.map(addr => (
                                                     <option key={addr.id} value={addr.id}>
                                                         {addr.name} - {addr.city}
                                                     </option>
@@ -498,6 +680,42 @@ export default function Checkout() {
                              </div>
                          </div>
 
+                        {/* Price Summary */}
+                        <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 border-2 border-slate-200 dark:border-slate-700">
+                            <h3 className="font-bold text-slate-800 dark:text-white mb-4 text-lg">Price Breakdown</h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                                    <span>Subtotal ({cartArray.length} items)</span>
+                                    <span className="font-semibold">₹{totalPrice.toLocaleString()}</span>
+                                </div>
+                                {appliedCoupon && (
+                                    <div className="flex justify-between text-green-600 dark:text-green-400">
+                                        <span>Coupon Discount ({appliedCoupon.code})</span>
+                                        <span className="font-semibold">-₹{appliedCoupon.discount.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {appliedCrashCash > 0 && (
+                                    <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                                        <span>CrashCash Discount</span>
+                                        <span className="font-semibold">-₹{appliedCrashCash.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                <div className="border-t-2 border-slate-300 dark:border-slate-600 pt-3">
+                                    <div className="flex justify-between text-slate-900 dark:text-white text-xl font-bold">
+                                        <span>Total Amount</span>
+                                        <span className="text-red-600 dark:text-red-400">₹{getTotalAfterDiscount().toLocaleString()}</span>
+                                    </div>
+                                </div>
+                                {(appliedCoupon || appliedCrashCash > 0) && (
+                                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 mt-2">
+                                        <p className="text-sm text-green-700 dark:text-green-300 font-semibold">
+                                            🎉 You're saving ₹{((appliedCoupon?.discount || 0) + appliedCrashCash).toLocaleString()}!
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Proceed to Payment Button */}
                         <button
                             onClick={handleProceedToPayment}
@@ -513,9 +731,40 @@ export default function Checkout() {
             {/* Address Form Modal */}
             {showAddressForm && (
                 <AddressForm
-                    onSave={() => {
+                    onSave={async () => {
                         setShowAddressForm(false)
                         toast.success('Address added successfully!')
+                        // Refresh addresses list
+                        try {
+                            setLoadingAddresses(true)
+                            const userData = localStorage.getItem('user')
+                            if (userData) {
+                                const user = JSON.parse(userData)
+                                const email = user.email
+                                
+                                const token = localStorage.getItem('token')
+                                const response = await fetch('/api/user/addresses', {
+                                    headers: {
+                                        'x-user-email': email,
+                                        ...(token && { 'Authorization': `Bearer ${token}` })
+                                    }
+                                })
+
+                                if (response.ok) {
+                                    const data = await response.json()
+                                    setAddresses(data.addresses || [])
+                                    // Auto-select the newly added address (usually the last one)
+                                    if (data.addresses && data.addresses.length > 0) {
+                                        const newAddress = data.addresses[data.addresses.length - 1]
+                                        setSelectedAddressId(newAddress.id)
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error refreshing addresses:', error)
+                        } finally {
+                            setLoadingAddresses(false)
+                        }
                     }}
                     onClose={() => setShowAddressForm(false)}
                 />
