@@ -84,7 +84,7 @@ export default function Dashboard() {
                             <div className="bg-white rounded-lg p-6 flex max-sm:flex-col gap-5 sm:items-center justify-between">
                                 <div className="flex-1">
                                     <div className="flex gap-3 mb-3">
-                                        <Image src={review.user.image} alt="" className="w-10 aspect-square rounded-full" width={100} height={100} />
+                                        <Image src={review.user.image?.src || review.user.image} alt="" className="w-10 aspect-square rounded-full" width={100} height={100} />
                                         <div>
                                             <p className="font-medium text-slate-800">{review.user.name}</p>
                                             <p className="font-light text-slate-500 text-sm">{new Date(review.createdAt).toDateString()}</p>

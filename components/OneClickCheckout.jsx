@@ -66,17 +66,23 @@ export default function OneClickCheckout({ userId, cartItems, onCheckoutSuccess 
   };
 
   const deleteCard = async (cardId) => {
-    if (window.confirm("Delete this card?")) {
-      try {
-        // Implement delete endpoint as needed
-        setCards(cards.filter(c => c.id !== cardId));
-        if (selectedCard === cardId) {
-          setSelectedCard(cards[0]?.id || null);
-        }
-        toast.success("Card deleted");
-      } catch (error) {
-        toast.error("Failed to delete card");
+    const { showConfirm } = await import('@/lib/alertUtils');
+    const confirmed = await showConfirm(
+      'Delete Card?',
+      'Are you sure you want to delete this card? You can add it again later.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      // Implement delete endpoint as needed
+      setCards(cards.filter(c => c.id !== cardId));
+      if (selectedCard === cardId) {
+        setSelectedCard(cards[0]?.id || null);
       }
+      toast.success("Card deleted");
+    } catch (error) {
+      toast.error("Failed to delete card");
     }
   };
 

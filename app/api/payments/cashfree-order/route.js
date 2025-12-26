@@ -308,7 +308,10 @@ export async function POST(req) {
         
         if (validItems.length > 0) {
             orderData.orderItems = {
-                create: validItems
+                create: validItems.map((item, index) => ({
+                    ...item,
+                    shipmentId: `SHIP-${Date.now()}-${index}`
+                }))
             }
         }
 

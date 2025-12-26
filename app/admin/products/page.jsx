@@ -55,7 +55,13 @@ export default function AdminProductsPage() {
   };
 
   const handleDeleteProduct = async (productId) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+    const { showConfirm } = await import('@/lib/alertUtils');
+    const confirmed = await showConfirm(
+      'Delete Product?',
+      'Are you sure you want to delete this product? This action cannot be undone.'
+    );
+    
+    if (!confirmed) return;
     
     try {
       const response = await fetch(`/api/products/${productId}`, {
@@ -241,7 +247,7 @@ export default function AdminProductsPage() {
                       <div className="flex items-start gap-4">
                         {review.user?.image && (
                           <Image
-                            src={review.user.image}
+                            src={review.user.image?.src || review.user.image}
                             alt={review.user.name}
                             width={40}
                             height={40}

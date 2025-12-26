@@ -8,6 +8,7 @@ import RatingModal from "./RatingModal";
 import { getProductImage } from "@/lib/productImageHelper";
 import OrderTracking from "./OrderTracking";
 import OutOfStockDisplay from "./OutOfStockDisplay";
+import { toast } from "react-hot-toast";
 
 const OrderItem = ({ order: initialOrder }) => {
 
@@ -15,6 +16,27 @@ const OrderItem = ({ order: initialOrder }) => {
     const [ratingModal, setRatingModal] = useState(null);
     const [showTracking, setShowTracking] = useState(false);
     const [order, setOrder] = useState(initialOrder);
+
+    const handleDownloadInvoice = async (orderId) => {
+        try {
+            const response = await fetch(`/api/orders/${orderId}/invoice`);
+            if (!response.ok) throw new Error('Failed to generate invoice');
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `invoice-${orderId}.html`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.success('Invoice downloaded successfully');
+        } catch (error) {
+            console.error('Invoice download error:', error);
+            toast.error('Failed to download invoice');
+        }
+    };
 
     // Sync with localStorage whenever tracking is shown
     useEffect(() => {
@@ -147,6 +169,12 @@ const OrderItem = ({ order: initialOrder }) => {
                             {(order.status || 'pending').split('_').join(' ').toLowerCase()}
                         </span>
                         {showTracking ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                    <button
+                        onClick={() => handleDownloadInvoice(order.id)}
+                        className="w-full px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-lg text-xs font-medium transition"
+                    >
+                        📄 Download Invoice
                     </button>
                 </td>
             </tr>

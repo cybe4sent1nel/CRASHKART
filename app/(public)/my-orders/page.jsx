@@ -17,6 +17,7 @@ import { getUserOrders, initializeUserProfile, migrateUserData } from '@/lib/use
 import { LiveIndicator, SyncStatus } from '@/components/ConnectionStatus'
 import PaymentAnimation from '@/components/animations/PaymentAnimation'
 import MultiProductTracking from '@/components/MultiProductTracking'
+import { setupRealtimeSync, subscribeToOrderUpdates } from '@/lib/realtimeSync'
 
 export default function MyOrders() {
     const router = useRouter()
@@ -52,13 +53,27 @@ export default function MyOrders() {
     }
 
     const getPaymentStatus = (isPaid, paymentMethod, status) => {
-        // COD orders are PAYMENT_PENDING until payment is received
-        if (paymentMethod === 'COD' || paymentMethod === 'cod') return 'PAYMENT_PENDING'
-        // For online/cashfree/card payments, if isPaid is true, show PAID
-        if (isPaid === true) return 'PAID'
-        // For online methods that aren't marked as paid, they're pending
-        return 'PAYMENT_PENDING'
-    }
+         // If order is marked as paid, show PAID regardless of method
+         if (isPaid === true) return 'PAID'
+         
+         // If order status is PAYMENT_PENDING, show that
+         if (status === 'PAYMENT_PENDING') return 'PAYMENT_PENDING'
+         
+         // For COD orders that haven't been explicitly marked as paid
+         if ((paymentMethod === 'COD' || paymentMethod === 'cod') && isPaid !== true) {
+             // COD is payment on delivery - show PAYMENT_PENDING until delivered and paid
+             return 'PAYMENT_PENDING'
+         }
+         
+         // For online/cashfree/card payments
+         if (paymentMethod === 'CASHFREE' || paymentMethod === 'STRIPE' || paymentMethod === 'CARD') {
+             // If not explicitly marked as paid, assume pending
+             return isPaid === true ? 'PAID' : 'PAYMENT_PENDING'
+         }
+         
+         // Default: if not paid, it's pending
+         return isPaid === true ? 'PAID' : 'PAYMENT_PENDING'
+     }
 
     const getAnimationForStatus = (status) => {
         const statusLower = String(status).toLowerCase()
@@ -313,14 +328,81 @@ export default function MyOrders() {
 
             window.addEventListener('orderStatusUpdated', handleStatusUpdate)
 
-            // Set up polling for real-time updates (every 30 seconds)
-            const pollInterval = setInterval(() => {
-                loadOrders(email)
-            }, 30000)
+            // Set up real-time sync with polling
+            const cleanupSync = setupRealtimeSync(email, (updatedOrders) => {
+                // Transform API data to display format
+                const transformedOrders = updatedOrders.map(order => {
+                    const status = getFormattedStatus(order.status)
+                    const paymentStatus = getPaymentStatus(order.isPaid, order.paymentMethod, order.status)
+                    return {
+                        id: order.id,
+                        date: new Date(order.createdAt).toLocaleDateString(),
+                        total: order.total,
+                        status: status,
+                        isPaid: order.isPaid,
+                        paymentMethod: order.paymentMethod,
+                        paymentStatus: paymentStatus,
+                        items: (order.items || order.orderItems || []).map(item => ({
+                            id: item.id || item.productId,
+                            name: item.name || item.product?.name || 'Product',
+                            price: item.price,
+                            qty: item.quantity || item.qty,
+                            productId: item.productId,
+                            product: item.product
+                        })),
+                        address: order.address ? `${order.address.street}, ${order.address.city}, ${order.address.state} ${order.address.zip}` : 'Address not available',
+                        coupon: order.coupon,
+                        tracking: {
+                            step: mapStatusToTrackingStep(order.status),
+                            steps: buildTrackingSteps(order.status)
+                        }
+                    }
+                })
+                setOrders(transformedOrders)
+                setLastSync(new Date())
+            })
+
+            // Also subscribe to event-based updates for instant notifications
+            const unsubscribe = subscribeToOrderUpdates(({ orderId, newStatus, order: updatedOrderFromAdmin }) => {
+                console.log('📡 Order status update received:', { orderId, newStatus })
+                setOrders(prevOrders =>
+                    prevOrders.map(order => {
+                        if (order.id === orderId) {
+                            if (updatedOrderFromAdmin) {
+                                const status = getFormattedStatus(updatedOrderFromAdmin.status)
+                                const paymentStatus = getPaymentStatus(updatedOrderFromAdmin.isPaid, updatedOrderFromAdmin.paymentMethod, updatedOrderFromAdmin.status)
+                                return {
+                                    ...order,
+                                    status: status,
+                                    isPaid: updatedOrderFromAdmin.isPaid,
+                                    paymentStatus: paymentStatus,
+                                    tracking: {
+                                        step: mapStatusToTrackingStep(updatedOrderFromAdmin.status),
+                                        steps: buildTrackingSteps(updatedOrderFromAdmin.status)
+                                    }
+                                }
+                            } else {
+                                return {
+                                    ...order,
+                                    status: getFormattedStatus(newStatus),
+                                    paymentStatus: getPaymentStatus(order.isPaid, order.paymentMethod, newStatus),
+                                    tracking: {
+                                        step: mapStatusToTrackingStep(newStatus),
+                                        steps: buildTrackingSteps(newStatus)
+                                    }
+                                }
+                            }
+                        }
+                        return order
+                    })
+                )
+                setLastSync(new Date())
+            })
 
             return () => {
                 window.removeEventListener('orderStatusUpdated', handleStatusUpdate)
-                clearInterval(pollInterval)
+                cleanupSync()
+                unsubscribe()
             }
         } catch (error) {
             console.error('Error loading user orders:', error)

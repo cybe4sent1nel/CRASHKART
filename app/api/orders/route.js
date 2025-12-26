@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { sendOrderConfirmationWithInvoice } from '@/lib/email';
-import { generateInvoicePDF } from '@/lib/invoiceGenerator';
+import { getInvoiceAttachment } from '@/lib/invoiceGenerator';
 
 const prisma = new PrismaClient();
 
@@ -47,11 +47,14 @@ export async function POST(request) {
       );
     }
 
-    // Generate unique shipment ID
+    // Generate unique shipment ID (only for multi-product orders)
     const generateShipmentId = (orderId, index) => {
       const timestamp = Date.now().toString(36).toUpperCase();
       return `SHP-${timestamp}-${index + 1}`.substring(0, 20);
     };
+
+    // Determine if this is a multi-product order
+    const isMultiProductOrder = items.length > 1;
 
     // Create order with items
     const order = await prisma.order.create({
@@ -60,18 +63,23 @@ export async function POST(request) {
         storeId,
         addressId,
         total,
+        status: 'ORDER_PLACED', // Explicitly set order status
         paymentMethod,
         isPaid: isPaid || false,
         isCouponUsed: !!coupon,
         coupon: coupon || {},
+        createdAt: new Date(), // Explicitly set createdAt
+        updatedAt: new Date(), // Explicitly set updatedAt
         orderItems: {
           create: items.map((item, idx) => ({
             productId: item.productId,
             quantity: item.quantity,
             price: item.price,
-            shipmentId: generateShipmentId(userId, idx), // Unique shipment ID
+            shipmentId: isMultiProductOrder ? generateShipmentId(userId, idx) : null, // ShipmentID only for multi-product orders
             status: 'ORDER_PLACED', // Initial status
             estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+            createdAt: new Date(), // Explicitly set createdAt for order items
+            updatedAt: new Date(), // Explicitly set updatedAt for order items
           })),
         },
       },
@@ -118,6 +126,8 @@ export async function POST(request) {
         shipmentId: item.shipmentId, // Include shipment ID
       })),
       subtotal: order.total,
+      discount: 0, // Add discount if coupon was applied
+      crashCashApplied: 0, // Add if CrashCash was used
       total: order.total,
       address: {
         name: address.name,
@@ -134,19 +144,28 @@ export async function POST(request) {
       customerEmail: user.email,
       customerPhone: user.phone || address.phone,
       estimatedDelivery: '3-5 business days',
+      currency: process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹'
     };
 
-    // Generate invoice PDF
+    // Send order confirmation email with invoice
     try {
-      const invoicePDF = await generateInvoicePDF(emailData);
+      // Generate invoice attachment
+      const invoiceAttachment = await getInvoiceAttachment(emailData);
+      console.log('Invoice generated successfully for order:', order.id);
       
       // Send confirmation email with invoice
-      await sendOrderConfirmationWithInvoice(user.email, emailData, invoicePDF, user.name);
-    } catch (invoiceError) {
-      console.error('Invoice generation error:', invoiceError);
-      // Still send email without invoice if generation fails
-      const { sendOrderConfirmationEmail } = await import('@/lib/email');
-      await sendOrderConfirmationEmail(user.email, emailData, user.name);
+      await sendOrderConfirmationWithInvoice(user.email, emailData, invoiceAttachment, user.name);
+      console.log('Order confirmation email sent successfully to:', user.email);
+    } catch (emailError) {
+      console.error('Email/Invoice error:', emailError);
+      // Try sending email without invoice as fallback
+      try {
+        await sendOrderConfirmationEmail(user.email, emailData, user.name);
+        console.log('Order confirmation email sent without invoice to:', user.email);
+      } catch (fallbackError) {
+        console.error('Failed to send order confirmation email:', fallbackError);
+        // Don't fail the order creation if email fails
+      }
     }
 
     return NextResponse.json({

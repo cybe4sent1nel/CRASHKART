@@ -22,7 +22,7 @@ const Hero = () => {
                     <div className='p-5 sm:p-16 relative z-10'>
                         <div className='inline-flex items-center gap-3 bg-green-300 text-green-700 pr-4 p-1 rounded-full text-xs sm:text-sm hover:bg-green-400 transition'>
                             <span className='bg-green-600 px-3 py-1 max-sm:ml-1 rounded-full text-white text-xs font-bold'>SPECIAL</span> 
-                            Free Shipping on Orders Above ₹4,150! 
+                            Free Shipping on Orders Above ₹999! 
                             <ChevronRightIcon className='group-hover:ml-2 transition-all' size={16} />
                         </div>
                         <h2 className='text-3xl sm:text-5xl leading-[1.2] my-3 font-bold bg-gradient-to-r from-slate-800 dark:from-white to-[#22c55e] bg-clip-text text-transparent max-w-xs sm:max-w-md'>
@@ -31,7 +31,7 @@ const Hero = () => {
                         <p className='text-slate-700 dark:text-slate-300 text-base mb-6'></p>
                         <div className='text-slate-800 dark:text-white text-sm font-medium mt-4 sm:mt-8'>
                             <p className='text-slate-600 dark:text-slate-400'>Starts from</p>
-                            <p className='text-4xl font-bold text-green-700'>{currency}830</p>
+                            <p className='text-4xl font-bold text-green-700'>{currency}199</p>
                         </div>
                         <Link href="/shop">
                             <button className='bg-slate-800 text-white text-sm py-3 px-8 sm:py-5 sm:px-12 mt-6 sm:mt-10 rounded-lg hover:bg-slate-900 hover:scale-105 active:scale-95 transition-all shadow-lg'>

@@ -151,21 +151,27 @@ export default function ProductReviews({ productId }) {
         toast.success('Review updated successfully!')
     }
 
-    const handleDeleteReview = (reviewId) => {
-        if (window.confirm('Are you sure you want to delete this review?')) {
-            const updatedReviews = reviews.filter(r => r.id !== reviewId)
-            setReviews(updatedReviews)
+    const handleDeleteReview = async (reviewId) => {
+        const { showConfirm } = await import('@/lib/alertUtils');
+        const confirmed = await showConfirm(
+            'Delete Review?',
+            'Are you sure you want to delete this review? This action cannot be undone.'
+        );
+        
+        if (!confirmed) return;
+        
+        const updatedReviews = reviews.filter(r => r.id !== reviewId)
+        setReviews(updatedReviews)
 
-            // Update in localStorage
-            const allReviews = localStorage.getItem('productReviews')
-            if (allReviews) {
-                const all = JSON.parse(allReviews)
-                const updated = all.filter(r => r.id !== reviewId)
-                localStorage.setItem('productReviews', JSON.stringify(updated))
-            }
-
-            toast.success('Review deleted successfully!')
+        // Update in localStorage
+        const allReviews = localStorage.getItem('productReviews')
+        if (allReviews) {
+            const all = JSON.parse(allReviews)
+            const updated = all.filter(r => r.id !== reviewId)
+            localStorage.setItem('productReviews', JSON.stringify(updated))
         }
+
+        toast.success('Review deleted successfully!')
     }
 
     const avgRating = reviews.length > 0 

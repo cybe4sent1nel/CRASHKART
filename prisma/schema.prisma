@@ -65,6 +65,7 @@ enum OrderStatus {
     SHIPPED
     DELIVERED
     PAYMENT_PENDING
+    CANCELLED
 }
 
 enum PaymentMethod {
@@ -110,8 +111,8 @@ model OrderItem {
     productId       String        @db.ObjectId
     quantity        Int
     price           Float
-    shipmentId      String        @unique // Unique shipment ID for tracking
-    status          OrderStatus   @default(ORDER_PLACED) // Individual product status
+    shipmentId      String?       @unique // Generated only for multi-product orders. Single product orders use orderId
+    status          OrderStatus   @default(ORDER_PLACED) // Individual product/shipment status
     trackingNumber  String?       // Tracking number for this shipment
     estimatedDelivery DateTime?   // Estimated delivery for this shipment
     deliveredAt     DateTime?     // When this item was delivered
@@ -121,6 +122,8 @@ model OrderItem {
     // Relations
     order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
     product Product @relation(fields: [productId], references: [id])
+    
+    @@index([orderId])
 }
 
 // Required for creating a Rating: rating, review, userId, productId

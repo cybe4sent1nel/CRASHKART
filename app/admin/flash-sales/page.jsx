@@ -20,6 +20,7 @@ export default function FlashSalesPage() {
         startTime: '',
         endTime: ''
     })
+    const [productDiscounts, setProductDiscounts] = useState({}) // Track discount per product
 
     useEffect(() => {
         fetchSales()
@@ -60,6 +61,11 @@ export default function FlashSalesPage() {
                 ...selectedProducts,
                 [productId]: product.quantity // Default to available stock quantity
             })
+            // Set default discount to global discount
+            setProductDiscounts({
+                ...productDiscounts,
+                [productId]: formData.discount
+            })
         }
     }
 
@@ -67,6 +73,10 @@ export default function FlashSalesPage() {
         const newSelected = { ...selectedProducts }
         delete newSelected[productId]
         setSelectedProducts(newSelected)
+        
+        const newDiscounts = { ...productDiscounts }
+        delete newDiscounts[productId]
+        setProductDiscounts(newDiscounts)
     }
 
     const handleUpdateProductQuantity = (productId, quantity) => {
@@ -91,6 +101,7 @@ export default function FlashSalesPage() {
             ...formData,
             products: selectedProductIds, // Array of product IDs
             productQuantities: selectedProducts, // Object with product-wise quantities
+            productDiscounts: productDiscounts, // Object with product-wise discounts
             startTime: new Date(formData.startTime).toISOString(),
             endTime: new Date(formData.endTime).toISOString()
         }
@@ -172,6 +183,7 @@ export default function FlashSalesPage() {
             endTime: ''
         })
         setSelectedProducts({})
+        setProductDiscounts({})
         setEditId(null)
         setShowForm(false)
         setExpandedProduct(null)
@@ -336,25 +348,51 @@ export default function FlashSalesPage() {
                                                     </div>
 
                                                     {isSelected && expandedProduct === product.id && (
-                                                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 border-t dark:border-slate-600">
-                                                            <label className="block text-sm font-medium mb-2">Flash Sale Quantity</label>
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="number"
-                                                                    min="1"
-                                                                    max={product.quantity}
-                                                                    value={selectedQty}
-                                                                    onChange={(e) => handleUpdateProductQuantity(product.id, parseInt(e.target.value) || 0)}
-                                                                    className="flex-1 px-3 py-2 border rounded dark:bg-slate-700 dark:border-slate-600 text-sm"
-                                                                    placeholder="Enter quantity"
-                                                                />
-                                                                <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                                                                    / {product.quantity}
-                                                                </span>
+                                                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 border-t dark:border-slate-600 space-y-3">
+                                                            <div>
+                                                                <label className="block text-sm font-medium mb-2">Flash Sale Quantity</label>
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        max={product.quantity}
+                                                                        value={selectedQty}
+                                                                        onChange={(e) => handleUpdateProductQuantity(product.id, parseInt(e.target.value) || 0)}
+                                                                        className="flex-1 px-3 py-2 border rounded dark:bg-slate-700 dark:border-slate-600 text-sm"
+                                                                        placeholder="Enter quantity"
+                                                                    />
+                                                                    <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                                        / {product.quantity}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
+                                                                    Only {selectedQty} units will be available in this flash sale
+                                                                </p>
                                                             </div>
-                                                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                                                                Only {selectedQty} units will be available in this flash sale
-                                                            </p>
+
+                                                            <div>
+                                                                <label className="block text-sm font-medium mb-2">Product Discount (%)</label>
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        max="100"
+                                                                        value={productDiscounts[product.id] || formData.discount}
+                                                                        onChange={(e) => setProductDiscounts({
+                                                                            ...productDiscounts,
+                                                                            [product.id]: parseInt(e.target.value) || formData.discount
+                                                                        })}
+                                                                        className="flex-1 px-3 py-2 border rounded dark:bg-slate-700 dark:border-slate-600 text-sm"
+                                                                        placeholder="Enter discount"
+                                                                    />
+                                                                    <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                                        %
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
+                                                                    Override global discount for this product
+                                                                </p>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>

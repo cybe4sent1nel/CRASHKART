@@ -269,8 +269,8 @@ export default function BuyNowCheckout() {
                                                 </div>
                                             )}
                                             
-                                            {/* Out of Stock Overlay */}
-                                            {!item.inStock && (
+                                            {/* Out of Stock Overlay - Only show if product quantity is explicitly 0 */}
+                                            {item.quantity === 0 && (
                                                 <div className='absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg'>
                                                     <span className='bg-red-600 text-white px-1 py-0.5 rounded text-xs font-semibold'>
                                                         OOS

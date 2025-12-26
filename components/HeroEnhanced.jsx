@@ -96,7 +96,7 @@ const HeroEnhanced = () => {
                     <div className='p-5 sm:p-16 relative z-10'>
                         <div className='inline-flex items-center gap-3 bg-green-300 text-green-700 pr-4 p-1 rounded-full text-xs sm:text-sm hover:bg-green-400 transition'>
                             <span className='bg-green-600 px-3 py-1 max-sm:ml-1 rounded-full text-white text-xs font-bold'>SPECIAL</span> 
-                            Free Shipping on Orders Above ₹4,150! 
+                            Free Shipping on Orders Above ₹999! 
                             <ChevronRightIcon className='group-hover:ml-2 transition-all' size={16} />
                         </div>
                         
@@ -107,7 +107,7 @@ const HeroEnhanced = () => {
                         <p className='text-slate-700 dark:text-slate-300 text-base mb-6'></p>
                         <div className='text-slate-800 dark:text-white text-sm font-medium mt-4 sm:mt-8'>
                             <p className='text-slate-600 dark:text-slate-400'>Starts from</p>
-                            <p className='text-4xl font-bold text-green-700'>{currency}830</p>
+                            <p className='text-4xl font-bold text-green-700'>{currency}199</p>
                         </div>
                         
                         <Link href="/shop">

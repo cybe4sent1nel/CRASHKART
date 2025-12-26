@@ -23,29 +23,29 @@ const LeafletMap = ({ selectedLocation, onLocationSelect }) => {
     }).addTo(map)
 
     // Add CrashKart logo with copyright on map
-    const logoControl = L.control({ position: 'bottomright' })
-    logoControl.onAdd = function (map) {
-      const div = L.DomUtil.create('div', 'leaflet-control leaflet-bar')
-      div.innerHTML = `
-        <div style="
-          background: white;
-          padding: 8px 12px;
-          border-radius: 4px;
-          font-size: 11px;
-          color: #666;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-          font-weight: 500;
-        ">
-          <img src="/logo.bmp" alt="CrashKart" style="width: 16px; height: 16px; object-fit: contain;" />
-          <span>© CrashKart 2025</span>
-        </div>
-      `
-      return div
-    }
-    logoControl.addTo(map)
+     const logoControl = L.control({ position: 'bottomright' })
+     logoControl.onAdd = function (map) {
+       const div = L.DomUtil.create('div', 'leaflet-control leaflet-bar')
+       div.innerHTML = `
+         <div style="
+           background: white;
+           padding: 8px 12px;
+           border-radius: 4px;
+           font-size: 11px;
+           color: #666;
+           display: flex;
+           align-items: center;
+           gap: 6px;
+           box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+           font-weight: 500;
+         ">
+           <img src="/logo.bmp" alt="CrashKart" style="width: 16px; height: 16px; object-fit: contain;" />
+           <span>© CrashKart 2025</span>
+         </div>
+       `
+       return div
+     }
+     logoControl.addTo(map)
 
     // Get user's current location
     if (navigator.geolocation) {
@@ -100,14 +100,15 @@ const LeafletMap = ({ selectedLocation, onLocationSelect }) => {
       map.removeLayer(markerRef.current)
     }
 
-    // Create custom icon using placeholder.png from CDN
-    const markerIcon = L.icon({
-      iconUrl: 'https://distant-jade-muvht7vmkt-k9gr16nwj0.edgeone.dev/placeholder.png',
-      iconSize: [48, 60],
-      iconAnchor: [24, 60],
-      popupAnchor: [0, -60],
-      shadowUrl: undefined
-    })
+    // Create custom icon using placeholder marker
+     const markerIcon = L.icon({
+       iconUrl: 'https://unnecessary-silver-ntzjyioib0-qm1gxg645d.edgeone.dev/placeholder.png',
+       iconSize: [48, 48],
+       iconAnchor: [24, 48],
+       popupAnchor: [0, -48],
+       className: 'crashkart-marker',
+       shadowUrl: undefined
+     })
 
     const newMarker = L.marker(location, {
       icon: markerIcon,

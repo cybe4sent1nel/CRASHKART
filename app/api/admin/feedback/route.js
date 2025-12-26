@@ -16,8 +16,12 @@ export async function GET(request) {
   try {
     const session = await getServerSession(authOptions)
     
-    // Check if user is admin
-    if (!session?.user?.isAdmin) {
+    // Check if user is admin - allow main admin email or isAdmin flag
+    const userEmail = session?.user?.email
+    const isMainAdmin = userEmail === 'crashkart.help@gmail.com'
+    const isAdmin = session?.user?.isAdmin === true || isMainAdmin
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 403 }
@@ -81,7 +85,12 @@ export async function POST(request) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.isAdmin) {
+    // Check if user is admin - allow main admin email or isAdmin flag
+    const userEmail = session?.user?.email
+    const isMainAdmin = userEmail === 'crashkart.help@gmail.com'
+    const isAdmin = session?.user?.isAdmin === true || isMainAdmin
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 403 }

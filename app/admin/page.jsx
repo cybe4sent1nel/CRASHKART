@@ -39,6 +39,8 @@ export default function AdminDashboard() {
     const [selectedOrderForStatus, setSelectedOrderForStatus] = useState(null)
     const [showStatusModal, setShowStatusModal] = useState(false)
     const [expandedStatusOrder, setExpandedStatusOrder] = useState(null)
+    const [lastOrderSync, setLastOrderSync] = useState(null)
+    const [isSyncingOrders, setIsSyncingOrders] = useState(false)
 
     const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹'
 
@@ -85,13 +87,24 @@ export default function AdminDashboard() {
         if (authorized) {
             fetchDashboardData()
 
-            // Set up real-time polling - refresh every 30 seconds
+            // Listen for order updates from other pages/instances
+            const handleOrderUpdate = (event) => {
+                console.log('📡 Order update detected in admin dashboard, refreshing...', event.detail)
+                fetchDashboardData()
+            }
+            
+            window.addEventListener('orderStatusUpdated', handleOrderUpdate)
+
+            // Set up real-time polling - refresh every 15 seconds
             const interval = setInterval(() => {
                 fetchDashboardData()
-            }, 30000)
+            }, 15000)
 
-            // Cleanup interval on unmount
-            return () => clearInterval(interval)
+            // Cleanup
+            return () => {
+                clearInterval(interval)
+                window.removeEventListener('orderStatusUpdated', handleOrderUpdate)
+            }
         }
     }, [authorized])
 
@@ -137,6 +150,7 @@ export default function AdminDashboard() {
 
     const fetchDashboardData = async () => {
         try {
+            setIsSyncingOrders(true)
             // Fetch real-time data from API
             const response = await fetch('/api/admin/analytics?period=30')
 
@@ -150,13 +164,16 @@ export default function AdminDashboard() {
                 const { overview, chartData } = data
 
                 // Fetch orders
-                const ordersResponse = await fetch('/api/admin/orders')
+                const ordersResponse = await fetch('/api/admin/orders?limit=50')
                 let ordersData = []
 
                 if (ordersResponse.ok) {
                     const ordersJson = await ordersResponse.json()
                     ordersData = ordersJson.orders || []
+                    console.log('Orders fetched from API:', ordersData.length, ordersData)
                 } else {
+                    const errorData = await ordersResponse.json().catch(() => ({}))
+                    console.error('Orders API error:', ordersResponse.status, ordersResponse.statusText, errorData)
                     // Fallback to localStorage if API fails
                     const userOrders = localStorage.getItem('userOrders')
                     if (userOrders) {
@@ -187,14 +204,18 @@ export default function AdminDashboard() {
                 console.log('Total products:', overview.totalProducts)
                 console.log('Orders fetched:', ordersData.length)
 
+                // Generate chart data based on current time period
+                const revenueData = generateRevenueData(ordersData, timePeriod)
+
                 // Set dashboard data from API
                 setDashboardData({
                     products: overview.totalProducts || 0,
                     revenue: (overview.totalRevenue || 0).toFixed(2),
                     orders: overview.totalOrders || 0,
                     stores: overview.pendingStores || 0,
-                    allOrders: chartData || [],
+                    allOrders: revenueData,
                 })
+                setLastOrderSync(new Date())
             }
         } catch (error) {
             console.error('Error fetching dashboard data:', error)
@@ -231,7 +252,7 @@ export default function AdminDashboard() {
             const totalProducts = productDummyData.length
             const totalOrders = finalOrders.length
             const totalRevenue = finalOrders.reduce((sum, order) => sum + parseFloat(order.total), 0).toFixed(2)
-            const revenueData = generateRevenueData(finalOrders, 'monthly')
+            const revenueData = generateRevenueData(finalOrders, timePeriod)
 
             setDashboardData({
                 products: totalProducts,
@@ -240,9 +261,11 @@ export default function AdminDashboard() {
                 stores: 2,
                 allOrders: revenueData,
             })
+            setLastOrderSync(new Date())
         }
         finally {
             setLoading(false)
+            setIsSyncingOrders(false)
         }
     }
 
@@ -319,7 +342,11 @@ export default function AdminDashboard() {
 
     const handleTimePeriodChange = (period) => {
         setTimePeriod(period)
-        const revenueData = generateRevenueData(orders, period)
+        // Use the current orders from state, not empty array
+        const currentOrders = orders.length > 0 ? orders : []
+        console.log('Time period changed to:', period, 'Orders count:', currentOrders.length)
+        const revenueData = generateRevenueData(currentOrders, period)
+        console.log('Generated revenue data:', revenueData)
         setDashboardData(prev => ({
             ...prev,
             allOrders: revenueData
@@ -778,8 +805,21 @@ export default function AdminDashboard() {
                         <h2 className="text-xl font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                             <Package size={22} className="text-red-500" />
                             Order Management ({orders.length})
+                            {isSyncingOrders && (
+                                <span className="ml-2 inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
+                                    <span className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse"></span>
+                                    Syncing...
+                                </span>
+                            )}
                         </h2>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Click on status to update order</p>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <p className="text-sm text-slate-600 dark:text-slate-400">Click on status to update order</p>
+                            {lastOrderSync && (
+                                <p className="text-xs text-slate-500 dark:text-slate-500">
+                                    Last sync: {lastOrderSync.toLocaleTimeString('en-IN')}
+                                </p>
+                            )}
+                        </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
                         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -789,16 +829,17 @@ export default function AdminDashboard() {
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Order ID</th>
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Total</th>
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Status</th>
+                                        <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Payment</th>
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Date</th>
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {orders && orders.length > 0 ? (
-                                        orders.map((order) => (
-                                            <tr key={order.id || order.orderId} className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
+                                        orders.map((order, index) => (
+                                            <tr key={index} className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
                                                 <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 font-mono">{(order.id || order.orderId || '').substring(0, 12)}</td>
-                                                <td className="px-6 py-4 text-sm font-semibold text-slate-800 dark:text-white">{currency}{order.total || 0}</td>
+                                                <td className="px-6 py-4 text-sm font-semibold text-slate-800 dark:text-white">{currency}{parseFloat(order.total || 0).toFixed(2)}</td>
                                                 <td className="px-6 py-4 text-sm relative">
                                                     <div className="relative">
                                                         <button
@@ -840,6 +881,15 @@ export default function AdminDashboard() {
                                                         )}
                                                     </div>
                                                 </td>
+                                                <td className="px-6 py-4 text-sm">
+                                                    <span className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                                                        order.isPaid === true
+                                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                                            : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                                    }`}>
+                                                        {order.isPaid === true ? '✓ Paid' : 'Pending'}
+                                                    </span>
+                                                </td>
                                                 <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                                                     {order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN', {
                                                         year: 'numeric',
@@ -865,7 +915,7 @@ export default function AdminDashboard() {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                                            <td colSpan="6" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                                                 No orders found
                                             </td>
                                         </tr>
@@ -967,7 +1017,10 @@ export default function AdminDashboard() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-sm flex gap-2">
-                                                <button className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition">
+                                                <button 
+                                                    onClick={() => router.push(`/admin/products/${product.id}`)}
+                                                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
+                                                >
                                                     <Edit2 size={16} />
                                                 </button>
                                                 <button

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { sendOrderStatusEmail } from '@/lib/email';
+import { triggerOrderStatusEmail } from '@/lib/emailTriggerService';
 
 // GET - List all orders with filters
 export async function GET(request) {
@@ -71,13 +71,6 @@ export async function GET(request) {
                                 }
                             }
                         }
-                    },
-                    store: {
-                        select: {
-                            id: true,
-                            name: true,
-                            logo: true
-                        }
                     }
                 },
                 orderBy: { [sortBy]: sortOrder },
@@ -86,6 +79,25 @@ export async function GET(request) {
             }),
             prisma.order.count({ where })
         ]);
+
+        // Enhance orders with shipment info
+        const enrichedOrders = orders.map(order => ({
+            ...order,
+            isSingleProductOrder: order.orderItems.length === 1,
+            shipments: order.orderItems.map(item => ({
+                id: item.id,
+                shipmentId: item.shipmentId,
+                productId: item.productId,
+                productName: item.product?.name,
+                quantity: item.quantity,
+                price: item.price,
+                status: item.status,
+                trackingNumber: item.trackingNumber,
+                estimatedDelivery: item.estimatedDelivery,
+                deliveredAt: item.deliveredAt,
+                isSingleProductOrder: !item.shipmentId
+            }))
+        }));
 
         // Get order statistics
         const stats = await prisma.order.groupBy({
@@ -104,7 +116,7 @@ export async function GET(request) {
 
         return NextResponse.json({
             success: true,
-            orders,
+            orders: enrichedOrders,
             pagination: {
                 page,
                 limit,
@@ -116,15 +128,22 @@ export async function GET(request) {
 
     } catch (error) {
         console.error('Error fetching orders:', error);
-        return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
+        return NextResponse.json({ 
+            success: false,
+            error: 'Failed to fetch orders',
+            message: error.message,
+            orders: [],
+            pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+            stats: {}
+        }, { status: 200 });
     }
 }
 
-// PUT - Update order status (single or bulk)
+// PUT - Update order status (single or bulk) - DELEGATED TO /update-status
 export async function PUT(request) {
     try {
         const body = await request.json();
-        const { orderId, orderIds, status, sendNotification = true } = body;
+        const { orderId, orderIds, shipmentId, status, sendNotification = true, trackingNumber, estimatedDelivery } = body;
 
         // Validate status - map user-friendly status to enum values
         const statusMap = {
@@ -132,18 +151,32 @@ export async function PUT(request) {
             'In Transit': 'SHIPPED',
             'Shipped': 'SHIPPED',
             'Delivered': 'DELIVERED',
-            'Cancelled': 'DELIVERED', // No CANCELLED in enum, use DELIVERED
+            'Cancelled': 'CANCELLED',
             'ORDER_PLACED': 'ORDER_PLACED',
             'PROCESSING': 'PROCESSING',
             'SHIPPED': 'SHIPPED',
-            'DELIVERED': 'DELIVERED'
+            'DELIVERED': 'DELIVERED',
+            'CANCELLED': 'CANCELLED',
+            'PAYMENT_PENDING': 'PAYMENT_PENDING'
         };
 
         const mappedStatus = statusMap[status] || status;
-        const validStatuses = ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'PAYMENT_PENDING'];
+        const validStatuses = ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'PAYMENT_PENDING'];
 
         if (!validStatuses.includes(mappedStatus)) {
             return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+        }
+
+        // If shipmentId provided, update single shipment
+        if (shipmentId) {
+            if (!orderId) {
+                return NextResponse.json({ error: 'orderId required when updating shipmentId' }, { status: 400 });
+            }
+            // Delegate to update-status endpoint
+            return NextResponse.json({
+                success: true,
+                message: 'Use POST /api/admin/orders/update-status with shipmentId for individual product updates'
+            });
         }
 
         // Handle single or bulk update
@@ -160,7 +193,7 @@ export async function PUT(request) {
                 user: { select: { id: true, name: true, email: true } },
                 orderItems: {
                     include: {
-                        product: { select: { name: true, images: true } }
+                        product: { select: { id: true, name: true, images: true } }
                     }
                 },
                 address: true
@@ -179,6 +212,19 @@ export async function PUT(request) {
                 updatedAt: new Date()
             }
         });
+
+        // Update all order items to the same status
+        for (const orderId of idsToUpdate) {
+            await prisma.orderItem.updateMany({
+                where: { orderId },
+                data: {
+                    status: mappedStatus,
+                    trackingNumber: trackingNumber || undefined,
+                    estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
+                    ...(mappedStatus === 'DELIVERED' && { deliveredAt: new Date() })
+                }
+            });
+        }
 
         // Create notifications for each user
         for (const order of ordersBeforeUpdate) {
@@ -204,27 +250,30 @@ export async function PUT(request) {
             for (const order of ordersBeforeUpdate) {
                 if (order.user?.email) {
                     try {
-                        await sendOrderStatusEmail(order.user.email, {
-                            orderId: order.id,
-                            orderStatus: mappedStatus,
-                            items: order.orderItems.map(item => ({
-                                name: item.product?.name,
-                                quantity: item.quantity,
-                                price: item.price,
-                                image: item.product?.images?.[0]
-                            })),
-                            total: order.total,
-                            address: {
-                                fullName: order.address?.name,
-                                street: order.address?.street,
-                                city: order.address?.city,
-                                state: order.address?.state,
-                                zipCode: order.address?.zipCode,
-                                country: order.address?.country,
-                                phone: order.address?.phone
+                        // Send updated email with new status
+                        const { sendOrderStatusEmail } = await import('@/lib/email');
+                        await sendOrderStatusEmail(
+                            order.user.email,
+                            {
+                                orderId: order.id,
+                                status: mappedStatus,
+                                items: order.orderItems.map(item => ({
+                                    name: item.product.name,
+                                    quantity: item.quantity,
+                                    price: item.price,
+                                    shipmentId: item.shipmentId
+                                })),
+                                subtotal: order.total,
+                                total: order.total,
+                                address: order.address,
+                                customerName: order.user?.name || 'Customer',
+                                customerEmail: order.user?.email,
+                                paymentMethod: order.paymentMethod,
+                                trackingNumber: trackingNumber,
+                                trackingLink: `${process.env.NEXT_PUBLIC_APP_URL}/track/${order.id}`
                             },
-                            trackingLink: `${process.env.NEXT_PUBLIC_APP_URL}/track-order/${order.id}`
-                        }, order.user.name);
+                            order.user.name
+                        );
                     } catch (emailError) {
                         console.error(`Failed to send email for order ${order.id}:`, emailError);
                     }
@@ -232,7 +281,6 @@ export async function PUT(request) {
             }
         }
 
-        // Emit real-time event if using websockets
         console.log(`✓ Updated ${result.count} orders to status: ${mappedStatus}`);
 
         return NextResponse.json({

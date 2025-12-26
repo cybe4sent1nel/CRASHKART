@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Star, Trash2, CheckCircle, XCircle, Eye, MessageCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import AdminLayout from '@/components/admin/AdminLayout'
 
 const FEEDBACK_TYPES = {
   product: 'Product Reviews',
@@ -88,7 +87,13 @@ export default function FeedbackPage() {
   }
 
   const handleDelete = async (feedbackId) => {
-    if (!confirm('Are you sure you want to delete this feedback?')) return
+    const { showConfirm } = await import('@/lib/alertUtils');
+    const confirmed = await showConfirm(
+      'Delete Feedback?',
+      'Are you sure you want to delete this feedback? This action cannot be undone.'
+    );
+    
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/admin/feedback/${feedbackId}`, {
@@ -114,8 +119,7 @@ export default function FeedbackPage() {
   }
 
   return (
-    <AdminLayout>
-      <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
@@ -264,9 +268,8 @@ export default function FeedbackPage() {
             ))
           )}
         </div>
-      </div>
 
-      {/* Modal */}
+        {/* Modal */}
       {showModal && selectedFeedback && (
         <>
           <div
@@ -386,6 +389,6 @@ export default function FeedbackPage() {
           </div>
         </>
       )}
-    </AdminLayout>
+    </div>
   )
 }

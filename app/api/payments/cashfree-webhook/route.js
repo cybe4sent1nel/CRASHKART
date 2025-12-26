@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { PrismaClient } from '@prisma/client'
-import { sendOrderConfirmationEmail } from '@/lib/email'
+import { sendOrderConfirmationWithInvoice } from '@/lib/email'
+import { getInvoiceAttachment } from '@/lib/invoiceGenerator'
 
 const prisma = new PrismaClient()
 
@@ -82,20 +83,24 @@ export async function POST(req) {
                     }
                 })
 
-                // Send order confirmation email
+                // Send order confirmation email with invoice
                 try {
                     const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/track/${order.id}`
                     
                     const orderData = {
                         orderId: order.id,
+                        customerName: order.user.name || order.user.email.split('@')[0],
+                        customerEmail: order.user.email,
+                        customerPhone: order.address.phone,
                         items: order.orderItems.map(item => ({
                             name: item.name || 'Product',
                             quantity: item.quantity,
-                            price: item.price
+                            price: item.price,
+                            image: item.image
                         })),
                         subtotal: order.total,
-                        discount: 0,
-                        crashCashApplied: 0,
+                        discount: order.discount || 0,
+                        crashCashApplied: order.crashCashUsed || 0,
                         crashCashReward: Math.floor(order.total * 0.1),
                         total: order.total,
                         address: {
@@ -108,14 +113,24 @@ export async function POST(req) {
                             email: order.user.email
                         },
                         paymentMethod: order.paymentMethod,
-                        customerName: order.user.name || order.user.email.split('@')[0],
+                        orderDate: order.createdAt || new Date(),
                         currency: process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹',
                         trackingLink: trackingLink
                     }
                     
-                    await sendOrderConfirmationEmail(order.user.email, orderData, order.user.name || order.user.email.split('@')[0])
+                    // Generate invoice attachment
+                    const invoiceAttachment = await getInvoiceAttachment(orderData)
+                    
+                    console.log('📧 Sending order confirmation email to:', order.user.email)
+                    await sendOrderConfirmationWithInvoice(
+                        order.user.email, 
+                        orderData, 
+                        invoiceAttachment,
+                        order.user.name || order.user.email.split('@')[0]
+                    )
+                    console.log('✅ Order confirmation email sent successfully')
                 } catch (emailError) {
-                    console.error('Failed to send confirmation email:', emailError)
+                    console.error('❌ Failed to send confirmation email:', emailError)
                     // Don't fail the webhook if email fails
                 }
 

@@ -7,7 +7,12 @@ export async function PATCH(request, { params }) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.isAdmin) {
+    // Check if user is admin - allow main admin email or isAdmin flag
+    const userEmail = session?.user?.email
+    const isMainAdmin = userEmail === 'crashkart.help@gmail.com'
+    const isAdmin = session?.user?.isAdmin === true || isMainAdmin
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 403 }
@@ -52,7 +57,12 @@ export async function DELETE(request, { params }) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.isAdmin) {
+    // Check if user is admin - allow main admin email or isAdmin flag
+    const userEmail = session?.user?.email
+    const isMainAdmin = userEmail === 'crashkart.help@gmail.com'
+    const isAdmin = session?.user?.isAdmin === true || isMainAdmin
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 403 }

@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { sendOrderConfirmationEmail } from '@/lib/email'
+import { triggerOrderConfirmationEmail } from '@/lib/emailTriggerService'
 
 const prisma = new PrismaClient()
 
@@ -140,12 +140,9 @@ export async function POST(req) {
         // Calculate CrashCash reward (10% of order total)
         const crashCashReward = Math.floor(total * 0.1)
 
-        // Send order confirmation email with tracking link
+        // Send order confirmation email with tracking link using automated trigger
         try {
-            const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/track/${order.id}`
-            
             const orderData = {
-                orderId: order.id,
                 items: items.map(item => ({
                     name: item.name,
                     quantity: item.quantity,
@@ -153,25 +150,10 @@ export async function POST(req) {
                 })),
                 subtotal: subtotal,
                 discount: discount || 0,
-                crashCashApplied: 0,
-                crashCashReward: crashCashReward,
-                total: total,
-                address: {
-                    name: address.name,
-                    street: address.street,
-                    city: address.city,
-                    state: address.state,
-                    zipCode: address.zip,
-                    phone: address.phone,
-                    email: user.email
-                },
-                paymentMethod: paymentMethodEnum,
-                customerName: user.name || user.email.split('@')[0],
-                currency: process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹',
-                trackingLink: trackingLink
+                crashCashApplied: 0
             }
 
-            await sendOrderConfirmationEmail(user.email, orderData, user.name || user.email.split('@')[0])
+            await triggerOrderConfirmationEmail(order, user, address, orderData)
         } catch (emailErr) {
             console.error('Email sending failed (non-critical):', emailErr.message)
             // Don't fail the order if email fails
