@@ -12,8 +12,8 @@ import "./globals.css";
 const outfit = Outfit({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
 export const metadata = {
-    title: "CrashKart - Shop smarter",
-    description: "CrashKart - Shop smarter",
+    title: "CrashKart - Your Ultimate Gadget Shopping Destination",
+    description: "CrashKart is an e-commerce platform offering the latest gadgets, electronics, and accessories. Shop securely with fast delivery, easy returns, and 24/7 customer support.",
     icons: {
         icon: "/logo.bmp",
         shortcut: "/logo.bmp",

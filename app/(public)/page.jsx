@@ -25,6 +25,32 @@ export default function Home() {
             {/* Enhanced Hero with Spotlight */}
             <HeroEnhanced />
 
+            {/* App Purpose & Description Section */}
+            <div className='bg-white py-12 border-b'>
+                <div className='max-w-7xl mx-auto px-6'>
+                    <div className='text-center max-w-4xl mx-auto'>
+                        <h2 className='text-3xl font-bold mb-4 text-slate-900'>About CrashKart</h2>
+                        <p className='text-lg text-slate-600 mb-6'>
+                            <strong>CrashKart</strong> is your premier online shopping destination for the latest gadgets, electronics, and accessories. We offer a seamless e-commerce platform where you can browse thousands of products, compare prices, read reviews, and make secure purchases with confidence.
+                        </p>
+                        <div className='grid md:grid-cols-3 gap-6 mt-8'>
+                            <div className='p-4 bg-slate-50 rounded-lg'>
+                                <h3 className='font-semibold text-slate-900 mb-2'>🛒 Easy Shopping</h3>
+                                <p className='text-sm text-slate-600'>Browse, compare, and buy products with our intuitive interface</p>
+                            </div>
+                            <div className='p-4 bg-slate-50 rounded-lg'>
+                                <h3 className='font-semibold text-slate-900 mb-2'>🔒 Secure Payments</h3>
+                                <p className='text-sm text-slate-600'>Shop safely with multiple payment options and encrypted transactions</p>
+                            </div>
+                            <div className='p-4 bg-slate-50 rounded-lg'>
+                                <h3 className='font-semibold text-slate-900 mb-2'>📦 Fast Delivery</h3>
+                                <p className='text-sm text-slate-600'>Track your orders in real-time and get fast, reliable shipping</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Mobile Shopping Animation Section */}
             <div className='relative py-16 bg-gradient-to-br from-slate-50 to-slate-100'>
                 <div className='max-w-7xl mx-auto px-6 flex items-center justify-between gap-12'>
