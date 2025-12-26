@@ -26,6 +26,7 @@
     "framer-motion": "^11.0.0",
     "html2canvas": "^1.4.1",
     "iconv-lite": "^0.7.1",
+    "imagekitio-react": "^4.3.0",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.4",
     "leaflet": "^1.9.4",

@@ -10,7 +10,7 @@ import {
 import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, ShoppingCart, Menu, X, User, LogOut, Package, Gift, Coins, Bell } from "lucide-react";
+import { Heart, ShoppingCart, Menu, X, User, LogOut, Package, Gift, Coins, Bell, Headphones } from "lucide-react";
 import { useSelector } from "react-redux";
 import { PlaceholdersAndVanishInput } from "./ui/placeholders-and-vanish-input";
 import ProfileImage from "./ProfileImage";
@@ -264,6 +264,11 @@ export default function Navbar() {
 
           {/* Right Side - Wishlist, Cart, CrashCash, Profile */}
           <div className="flex items-center gap-4">
+            {/* Support */}
+            <Link href="/support" className="flex items-center text-slate-600 dark:text-white hover:text-cyan-600 transition" title="Customer Support">
+              <Headphones size={20} />
+            </Link>
+
             {/* Notifications */}
             <Link href="/notifications" className="relative flex items-center text-slate-600 dark:text-white hover:text-green-600 transition">
               <Bell size={20} />
@@ -348,6 +353,11 @@ export default function Navbar() {
 
           {/* Right Side Icons */}
           <div className="flex items-center gap-3">
+            {/* Support - Mobile */}
+            <Link href="/support" className="relative">
+              <Headphones size={20} className="text-slate-600 dark:text-white hover:text-cyan-600 transition" />
+            </Link>
+
             {/* Notifications - Mobile */}
             <Link href="/notifications" className="relative">
               <Bell size={20} className="text-slate-600 dark:text-white hover:text-green-600 transition" />

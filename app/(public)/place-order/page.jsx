@@ -856,6 +856,16 @@ function PlaceOrderContent() {
                     {selectedAddress ? (
                         <div className='space-y-4'>
                             <div className='bg-gradient-to-br from-emerald-50 dark:from-emerald-900/20 to-cyan-50 dark:to-cyan-900/20 border-2 border-emerald-200 dark:border-emerald-700 rounded-2xl p-6'>
+                                <div className="flex items-start justify-between mb-3">
+                                    <h3 className="font-bold text-emerald-700 dark:text-emerald-400">Delivery To:</h3>
+                                    <button
+                                        onClick={() => setShowAddressForm(true)}
+                                        className="px-3 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition flex items-center gap-1"
+                                    >
+                                        <Edit2 size={14} />
+                                        Edit
+                                    </button>
+                                </div>
                                 <div className='space-y-3'>
                                     <div className='flex items-start gap-3'>
                                         <div className='font-bold text-lg text-emerald-600 bg-white dark:bg-slate-700 rounded-full w-8 h-8 flex items-center justify-center'>👤</div>

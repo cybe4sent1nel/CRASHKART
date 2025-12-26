@@ -7,6 +7,7 @@ import OfflineDetector from "@/components/OfflineDetector";
 import DarkModeScript from "@/components/DarkModeScript";
 import CookiePopup from "@/components/CookiePopup";
 import FeedbackPopup from "@/components/FeedbackPopup";
+import StyledComponentsRegistry from "@/lib/registry";
 import "./globals.css";
 
 const outfit = Outfit({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -31,16 +32,18 @@ export default function RootLayout({ children }) {
                 <DarkModeScript />
             </head>
             <body className={`${outfit.className} antialiased`}>
-                <SessionProvider>
-                    <StoreProvider>
-                        <Toaster />
-                        <NavigationProgress />
-                        <OfflineDetector />
-                        <CookiePopup />
-                        <FeedbackPopup />
-                        {children}
-                    </StoreProvider>
-                </SessionProvider>
+                <StyledComponentsRegistry>
+                    <SessionProvider>
+                        <StoreProvider>
+                            <Toaster />
+                            <NavigationProgress />
+                            <OfflineDetector />
+                            <CookiePopup />
+                            <FeedbackPopup />
+                            {children}
+                        </StoreProvider>
+                    </SessionProvider>
+                </StyledComponentsRegistry>
             </body>
         </html>
     );

@@ -21,8 +21,37 @@ export async function GET(request) {
       );
     }
 
+    // Try to find user by ID first (if it's a valid ObjectId), otherwise by email
+    let user;
+    try {
+      // Try as MongoDB ObjectId first
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true }
+      });
+    } catch (e) {
+      // If not valid ObjectId, might be Google ID - try finding by Google ID or email
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { googleId: userId },
+            { email: userId }
+          ]
+        },
+        select: { id: true }
+      });
+    }
+
+    if (!user) {
+      return NextResponse.json({
+        success: true,
+        notifications: [],
+        unreadCount: 0,
+      });
+    }
+
     const whereClause = {
-      userId,
+      userId: user.id,
       ...(unreadOnly && { isRead: false }),
     };
 
@@ -33,7 +62,7 @@ export async function GET(request) {
     });
 
     const unreadCount = await prisma.notification.count({
-      where: { userId, isRead: false },
+      where: { userId: user.id, isRead: false },
     });
 
     return NextResponse.json({
