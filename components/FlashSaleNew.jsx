@@ -8,6 +8,10 @@ import Image from 'next/image'
 import { addToWishlist, removeFromWishlist } from '@/lib/features/wishlist/wishlistSlice'
 import { addToCart } from '@/lib/features/cart/cartSlice'
 import OutOfStockDisplay from './OutOfStockDisplay'
+import LottieAnimation from './LottieAnimation'
+import wishlistAnimData from '@/public/animations/Wishlist Animation.json'
+import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
 
 const FlashSaleNew = () => {
     const router = useRouter()
@@ -22,6 +26,7 @@ const FlashSaleNew = () => {
     const [loading, setLoading] = useState(true)
     const [notifyLoading, setNotifyLoading] = useState(null)
     const [timeLeft, setTimeLeft] = useState({})
+    const [showWishlistAnim, setShowWishlistAnim] = useState(false)
 
     useEffect(() => {
         fetchFlashSales()
@@ -98,13 +103,34 @@ const FlashSaleNew = () => {
         return () => clearInterval(timer)
     }, [flashSales])
 
-    const toggleWishlist = (product) => {
+    const toggleWishlist = (product, e) => {
+        e.preventDefault()
+        e.stopPropagation()
+
+        // Prevent navigation loader from triggering
+        if (typeof window !== 'undefined') {
+            window.__disableNavigationLoader = true
+        }
+
         const isInWishlist = wishlistItems.some(item => item.id === product.id)
         if (isInWishlist) {
             dispatch(removeFromWishlist(product.id))
+            toast.success('Removed from wishlist')
         } else {
             dispatch(addToWishlist(product))
+            setShowWishlistAnim(true)
+            toast.success('Added to wishlist!')
+            setTimeout(() => {
+                setShowWishlistAnim(false)
+            }, 2000)
         }
+
+        // Re-enable navigation loader after a short delay
+        setTimeout(() => {
+            if (typeof window !== 'undefined') {
+                window.__disableNavigationLoader = false
+            }
+        }, 100)
     }
 
     const handleAddToCart = (product, e) => {
@@ -195,8 +221,40 @@ const FlashSaleNew = () => {
     }
 
     return (
-        <div className='mx-6'>
-            <div className='max-w-7xl mx-auto my-12'>
+        <>
+            {/* Wishlist Animation Overlay */}
+            <AnimatePresence>
+                {showWishlistAnim && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                        onClick={() => setShowWishlistAnim(false)}
+                    >
+                        <motion.div
+                            initial={{ y: -50 }}
+                            animate={{ y: 0 }}
+                            className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <LottieAnimation
+                                animationData={wishlistAnimData}
+                                width={200}
+                                height={200}
+                                loop={false}
+                                autoplay={true}
+                            />
+                            <p className="text-center text-xl font-bold text-slate-800 dark:text-white mt-4">
+                                Added to Wishlist! ❤️
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div className='mx-6'>
+                <div className='max-w-7xl mx-auto my-12'>
                 {/* Header */}
                 <div className='flex items-center justify-between mb-8'>
                     <div className='flex items-center gap-3'>
@@ -276,11 +334,8 @@ const FlashSaleNew = () => {
                                         -{discount}%
                                     </div>
                                     <button
-                                        onClick={(e) => {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            toggleWishlist(product)
-                                        }}
+                                        onClick={(e) => toggleWishlist(product, e)}
+                                        data-no-loader="true"
                                         className='absolute top-2 left-2 bg-white hover:bg-red-50 p-2 rounded-full transition'
                                     >
                                         <Heart 
@@ -388,6 +443,7 @@ const FlashSaleNew = () => {
                 </div>
             </div>
         </div>
+        </>
     )
 }
 
