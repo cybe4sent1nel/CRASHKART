@@ -35,7 +35,7 @@ const sanitizeUrl = (url) => {
     let cleaned = url.replace(/\s+/g, '')
     
     // Remove any accidental duplicate slashes (except in http://)
-    cleaned = cleaned.replace(/([^:])(\\/\\/+)/g, '$1/')
+    cleaned = cleaned.replace(/([^:])(\/\/+)/g, '$1/')
     
     // Ensure proper URL structure
     try {
