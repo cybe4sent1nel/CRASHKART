@@ -49,19 +49,26 @@ export default function OrderSuccess() {
                      const data = await response.json()
                      setOrder(data.order)
                      
-                     // Mark order as paid if coming from successful Cashfree payment
-                     // Check if order was just created and payment method is CASHFREE
-                     if (data.order?.paymentMethod === 'CASHFREE' && !data.order?.isPaid) {
-                         console.log('🔄 Marking order as paid after Cashfree payment')
+                     // Automatically mark order as paid if reaching success page with Cashfree payment
+                     // This page only loads after successful payment/COD selection
+                     if (data.order && !data.order.isPaid) {
+                         console.log('🔄 Marking order as paid - user reached success page')
                          try {
-                             await fetch(`/api/orders/${orderId}/payment-status`, {
+                             const updateResponse = await fetch(`/api/orders/${orderId}/payment-status`, {
                                  method: 'PUT',
                                  headers,
                                  body: JSON.stringify({
                                      isPaid: true,
-                                     paymentMethod: 'CASHFREE'
+                                     status: data.order.paymentMethod === 'COD' ? 'ORDER_PLACED' : 'PAID'
                                  })
                              })
+                             
+                             if (updateResponse.ok) {
+                                 console.log('✅ Order payment status updated successfully')
+                                 // Refresh order data
+                                 const updatedData = await updateResponse.json()
+                                 setOrder(updatedData.order)
+                             }
                          } catch (updateError) {
                              console.error('Failed to update payment status:', updateError)
                          }

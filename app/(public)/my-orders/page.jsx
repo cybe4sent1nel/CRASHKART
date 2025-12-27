@@ -74,13 +74,10 @@ export default function MyOrders() {
          // If order is marked as paid, show PAID regardless of method
          if (isPaid === true) return 'PAID'
          
-         // If order status is PAYMENT_PENDING, show that
-         if (status === 'PAYMENT_PENDING') return 'PAYMENT_PENDING'
-         
          // For COD orders that haven't been explicitly marked as paid
          if ((paymentMethod === 'COD' || paymentMethod === 'cod') && isPaid !== true) {
-             // COD is payment on delivery - show PAYMENT_PENDING until delivered and paid
-             return 'PAYMENT_PENDING'
+             // COD is payment on delivery
+             return 'PAYMENT ON DELIVERY'
          }
          
          // For online/cashfree/card payments
@@ -89,9 +86,45 @@ export default function MyOrders() {
              return isPaid === true ? 'PAID' : 'PAYMENT_PENDING'
          }
          
-         // Default: if not paid, it's pending
+         // Default
+         if (status === 'PAYMENT_PENDING') return 'PAYMENT_PENDING'
          return isPaid === true ? 'PAID' : 'PAYMENT_PENDING'
      }
+
+    const handlePayNow = async (order) => {
+        try {
+            toast.loading('Redirecting to payment gateway...')
+            
+            // Recreate Cashfree order for payment
+            const response = await fetch('/api/payments/cashfree-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    orderId: order.id,
+                    retryPayment: true
+                })
+            })
+
+            const data = await response.json()
+            
+            if (data.success) {
+                // Redirect to Cashfree payment page
+                const cashfree = window.Cashfree({ mode: process.env.NEXT_PUBLIC_CASHFREE_MODE || 'sandbox' })
+                cashfree.checkout({
+                    paymentSessionId: data.paymentSessionId,
+                    returnUrl: `${window.location.origin}/order-success/${order.id}`
+                })
+            } else {
+                toast.error(data.message || 'Failed to initiate payment')
+            }
+        } catch (error) {
+            console.error('Pay Now Error:', error)
+            toast.error('Something went wrong. Please try again.')
+        }
+    }
 
     const getAnimationForStatus = (status) => {
         const statusLower = String(status).toLowerCase()
@@ -624,9 +657,25 @@ export default function MyOrders() {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-4 mb-2 flex-wrap">
                                         <h3 className="font-bold text-slate-800 dark:text-white">{order.items.map(item => item.name).join(', ')}</h3>
-                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${order.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                            order.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                                            order.paymentStatus === 'PAYMENT ON DELIVERY' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 
+                                            'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                                        }`}>
                                             {order.paymentStatus}
                                         </span>
+                                        {order.paymentStatus === 'PAYMENT_PENDING' && (order.paymentMethod === 'CASHFREE' || order.paymentMethod === 'CARD' || order.paymentMethod === 'STRIPE') && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handlePayNow(order)
+                                                }}
+                                                className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                                            >
+                                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-pink-100">Pay Now</span>
+                                                <span className="text-xs opacity-90">& enjoy hassle-free delivery</span>
+                                            </button>
+                                        )}
                                     </div>
                                     <p className="text-sm text-slate-600 dark:text-slate-400">Order Date: {order.date}</p>
                                     <p className="text-sm text-slate-600 dark:text-slate-400">{order.items.length} item(s) - ₹{order.total}</p>

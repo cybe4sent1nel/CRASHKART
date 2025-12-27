@@ -36,6 +36,24 @@ export async function GET(request) {
         }
 
         if (action === 'approve') {
+            // Find the user and escalate to admin
+            const user = await prisma.user.findUnique({
+                where: { email: accessRequest.email }
+            })
+
+            if (!user) {
+                return new Response(
+                    `<html><body><h1>User Not Found</h1><p>No user account found with email ${accessRequest.email}. Please create an account first.</p></body></html>`,
+                    { status: 404, headers: { 'Content-Type': 'text/html' } }
+                )
+            }
+
+            // Escalate user to admin role
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { role: 'admin' }
+            })
+
             // Update request status to approved
             const updatedRequest = await prisma.adminAccessRequest.update({
                 where: { id: accessRequest.id },

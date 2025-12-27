@@ -2,7 +2,8 @@
 import { dummyAdminDashboardData, productDummyData, orderDummyData } from "@/assets/assets"
 import Loading from "@/components/Loading"
 import OrdersAreaChart from "@/components/OrdersAreaChart"
-import { CircleDollarSignIcon, ShoppingBasketIcon, StoreIcon, TagsIcon, Plus, Trash2, Edit2, TrendingUp, Users, Package, RefreshCw, X } from "lucide-react"
+import AdvancedAnalytics from "@/components/AdvancedAnalytics"
+import { CircleDollarSignIcon, ShoppingBasketIcon, StoreIcon, TagsIcon, Plus, Trash2, Edit2, TrendingUp, Users, Package, RefreshCw, X, BarChart3 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from 'next/navigation'
 import { Spotlight } from "@/components/ui/spotlight"
@@ -18,6 +19,8 @@ export default function AdminDashboard() {
     const [showAddProduct, setShowAddProduct] = useState(false)
     const [products, setProducts] = useState([])
     const [orders, setOrders] = useState([])
+    const [analyticsData, setAnalyticsData] = useState(null)
+    const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(false)
     const [dashboardData, setDashboardData] = useState({
         products: 0,
         revenue: 0,
@@ -152,7 +155,7 @@ export default function AdminDashboard() {
         try {
             setIsSyncingOrders(true)
             // Fetch real-time data from API
-            const response = await fetch('/api/admin/analytics?period=30')
+            const response = await fetch('/api/admin/analytics?period=90')
 
             if (!response.ok) {
                 throw new Error('Failed to fetch analytics')
@@ -162,9 +165,12 @@ export default function AdminDashboard() {
 
             if (data.success) {
                 const { overview, chartData } = data
+                
+                // Store full analytics data for advanced charts
+                setAnalyticsData(data)
 
-                // Fetch orders
-                const ordersResponse = await fetch('/api/admin/orders?limit=50')
+                // Fetch ALL orders without limit for complete data
+                const ordersResponse = await fetch('/api/admin/orders?limit=500')
                 let ordersData = []
 
                 if (ordersResponse.ok) {
@@ -808,7 +814,19 @@ export default function AdminDashboard() {
                 <div className="mt-12">
                     <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                         <h2 className="text-xl font-semibold text-slate-800 dark:text-white">Orders Analytics</h2>
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="flex gap-2 flex-wrap items-center">
+                            <button
+                                onClick={() => setShowAdvancedAnalytics(!showAdvancedAnalytics)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
+                                    showAdvancedAnalytics
+                                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                <BarChart3 size={16} />
+                                {showAdvancedAnalytics ? 'Simple View' : 'Advanced Analytics'}
+                            </button>
+                            <div className="h-6 w-px bg-slate-300 dark:bg-slate-600 mx-2" />
                             {['daily', 'weekly', 'monthly', 'yearly'].map((period) => (
                                 <button
                                     key={period}
@@ -823,9 +841,18 @@ export default function AdminDashboard() {
                             ))}
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
-                        <OrdersAreaChart allOrders={dashboardData.allOrders} timePeriod={timePeriod} />
-                    </div>
+                    
+                    {showAdvancedAnalytics ? (
+                        <AdvancedAnalytics 
+                            analyticsData={analyticsData} 
+                            orders={orders} 
+                            timePeriod={timePeriod} 
+                        />
+                    ) : (
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+                            <OrdersAreaChart allOrders={dashboardData.allOrders} timePeriod={timePeriod} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Recent Orders - Order Management */}

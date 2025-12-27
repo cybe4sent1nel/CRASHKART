@@ -30,6 +30,7 @@ export default function RootLayout({ children }) {
         <html lang="en" suppressHydrationWarning>
             <head>
                 <DarkModeScript />
+                <script src="https://sdk.cashfree.com/js/v3/cashfree.js" defer></script>
             </head>
             <body className={`${outfit.className} antialiased`}>
                 <StyledComponentsRegistry>
