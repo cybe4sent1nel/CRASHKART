@@ -26,6 +26,28 @@ const formatPhoneNumber = (phone) => {
     return phone
 }
 
+// Helper function to sanitize and validate URLs for Cashfree
+// Removes spaces, validates format, ensures proper structure
+const sanitizeUrl = (url) => {
+    if (!url) return ''
+    
+    // Remove all whitespace characters
+    let cleaned = url.replace(/\s+/g, '')
+    
+    // Remove any accidental duplicate slashes (except in http://)
+    cleaned = cleaned.replace(/([^:])(\\/\\/+)/g, '$1/')
+    
+    // Ensure proper URL structure
+    try {
+        const urlObj = new URL(cleaned)
+        return urlObj.href
+    } catch (err) {
+        console.warn('⚠️ Invalid URL detected, attempting to fix:', cleaned)
+        // If URL parsing fails, return the cleaned version anyway
+        return cleaned
+    }
+}
+
 export async function POST(req) {
     try {
         // Get user from Bearer token
@@ -113,9 +135,18 @@ export async function POST(req) {
         
         const formattedPhone = formatPhoneNumber(order.address?.phone || user.phone || '')
         
+        // Generate and sanitize URLs
+        const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const notifyUrl = sanitizeUrl(`${baseAppUrl}/api/payments/cashfree-webhook`)
+        const returnUrl = sanitizeUrl(`${baseAppUrl}/order-success/${orderId}`)
+        
+        console.log('🔗 URL Sanitization:')
+        console.log('  Notify URL:', notifyUrl)
+        console.log('  Return URL:', returnUrl)
+        
         const orderPayload = {
             order_id: cashfreeOrderId,
-            order_amount: Math.round(total * 100) / 100,
+            order_amount: Math.round(order.total * 100) / 100,
             order_currency: 'INR',
             customer_details: {
                 customer_id: user.id,
@@ -123,8 +154,8 @@ export async function POST(req) {
                 customer_email: userEmail
             },
             order_meta: {
-                notify_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payments/cashfree-webhook`,
-                return_url: `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')}/order-success/${orderId}`
+                notify_url: notifyUrl,
+                return_url: returnUrl
             },
             order_note: `CrashKart Order Payment - ${isCODConversion ? 'COD Conversion' : 'Regular Payment'}`
         }

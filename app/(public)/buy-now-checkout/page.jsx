@@ -43,13 +43,16 @@ export default function BuyNowCheckout() {
                 const data = JSON.parse(buyNowData)
                 if (data.isBuyNow && data.product) {
                      const product = data.product
+                     // Use flash sale price if available, otherwise use regular price
+                     const effectivePrice = product.salePrice || product.price || 0
                      const items = [{
                          ...product,
                          id: product.id,
                          quantity: product.quantity || 1,
-                         storeId: product.storeId || product.store_id
+                         storeId: product.storeId || product.store_id,
+                         price: effectivePrice  // Ensure flash sale price is used
                      }]
-                     const total = (product.price || 0) * (product.quantity || 1)
+                     const total = effectivePrice * (product.quantity || 1)
                      
                      setCartArray(items)
                      setTotalPrice(total)
@@ -328,7 +331,7 @@ export default function BuyNowCheckout() {
                                         <div className="flex-1">
                                             <h3 className="font-semibold text-slate-800 dark:text-white">{item.name}</h3>
                                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Qty: {item.quantity}</p>
-                                            <p className="text-lg font-bold text-red-500 mt-2">{currency}{((item.price || item.originalPrice || 0) * item.quantity).toLocaleString()}</p>
+                                            <p className="text-lg font-bold text-red-500 mt-2">{currency}{((item.salePrice || item.price || item.originalPrice || 0) * item.quantity).toLocaleString()}</p>
                                         </div>
                                     </div>
                                 ))}

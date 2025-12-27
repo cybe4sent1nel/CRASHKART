@@ -64,11 +64,13 @@ export default function Checkout() {
                 )
                 
                 if (product) {
-                    const price = product.price || product.originalPrice || 0
+                    // Use flash sale price if available, otherwise use regular price
+                    const price = product.salePrice || product.price || product.originalPrice || 0
                     cartArray.push({
                         ...product,
                         id: product.id || product._id,
-                        quantity: value
+                        quantity: value,
+                        price: price  // Ensure price is set correctly
                     })
                     totalPrice += price * value
                 }
@@ -422,7 +424,7 @@ export default function Checkout() {
                                         <div className="flex-1">
                                             <h3 className="font-semibold text-slate-800 dark:text-white">{item.name}</h3>
                                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Qty: {item.quantity}</p>
-                                            <p className="text-lg font-bold text-red-500 mt-2">{currency}{((item.price || item.originalPrice || 0) * item.quantity).toLocaleString()}</p>
+                                            <p className="text-lg font-bold text-red-500 mt-2">{currency}{((item.salePrice || item.price || item.originalPrice || 0) * item.quantity).toLocaleString()}</p>
                                         </div>
                                     </div>
                                 ))}
