@@ -50,6 +50,7 @@ export async function POST(req) {
              console.log('💳 Processing PAYMENT_SUCCESS:')
              console.log('  Cashfree Order ID:', order_id)
              console.log('  Payment ID:', payment_id)
+             console.log('  Amount:', order_amount)
              
              // Find the order in our database using the cashfree order ID from notes
              const orders = await prisma.order.findMany({
@@ -69,6 +70,7 @@ export async function POST(req) {
 
              if (orders.length > 0) {
                 const order = orders[0]
+                console.log('  Updating order:', order.id)
                 
                 // Update order to mark as paid
                 const updatedOrder = await prisma.order.update({
@@ -79,21 +81,26 @@ export async function POST(req) {
                         notes: JSON.stringify({
                             ...JSON.parse(order.notes || '{}'),
                             cashfreePaymentId: payment_id,
-                            paidAt: new Date().toISOString()
+                            paidAt: new Date().toISOString(),
+                            webhookProcessedAt: new Date().toISOString()
                         })
                     }
                 })
+                
+                console.log('  ✅ Order updated - isPaid:', updatedOrder.isPaid)
 
                 // Send order placed email with beautiful template
                 try {
+                    console.log('  📧 Attempting to send order placed email...')
                     await sendOrderPlacedEmail({
-                        order: order,
+                        order: updatedOrder,
                         customerEmail: order.user.email,
                         customerName: order.user.name || order.user.email.split('@')[0]
                     })
-                    console.log('✅ Order placed email sent successfully')
+                    console.log('  ✅ Order placed email sent successfully to:', order.user.email)
                 } catch (emailError) {
-                    console.error('❌ Failed to send order placed email:', emailError)
+                    console.error('  ❌ Failed to send order placed email:', emailError.message)
+                    console.error('  Email error stack:', emailError.stack)
                     // Don't fail the webhook if email fails
                 }
 
@@ -144,12 +151,17 @@ export async function POST(req) {
                     )
                     console.log('✅ Order confirmation email sent successfully')
                 } catch (emailError) {
-                    console.error('❌ Failed to send confirmation email:', emailError)
+                    console.error('❌ Failed to send confirmation email:', emailError.message)
+                    console.error('Email error stack:', emailError.stack)
                     // Don't fail the webhook if email fails
                 }
 
-                console.log(`✓ Payment successful for order: ${order.id}, Cashfree ID: ${order_id}, payment: ${payment_id}`)
+                console.log('🎉 Webhook processing completed successfully for order:', order.id)
+                return Response.json({ message: 'Webhook processed successfully', orderId: order.id })
             } else {
+                console.warn('⚠️ No order found matching Cashfree Order ID:', order_id)
+                return Response.json({ message: 'Order not found' }, { status: 404 })
+            }
                 console.warn(`No order found for Cashfree order ID: ${order_id}`)
             }
 
