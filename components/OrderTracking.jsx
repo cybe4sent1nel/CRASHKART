@@ -200,7 +200,6 @@ const OrderTracking = ({ order, onStatusChange }) => {
                 }
             ];
         }
-        ];
 
         setTrackingStages(stages);
         console.log('✅ Tracking stages updated');
