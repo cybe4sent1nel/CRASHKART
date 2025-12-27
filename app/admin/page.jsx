@@ -1,5 +1,4 @@
 'use client'
-import { dummyAdminDashboardData, productDummyData, orderDummyData } from "@/assets/assets"
 import Loading from "@/components/Loading"
 import OrdersAreaChart from "@/components/OrdersAreaChart"
 import AdvancedAnalytics from "@/components/AdvancedAnalytics"
@@ -211,13 +210,16 @@ export default function AdminDashboard() {
                     }
                 }
 
-                // Fetch products
+                // Fetch products - ONLY from database, no dummy data
                 const productsResponse = await fetch('/api/admin/inventory')
-                let productsData = productDummyData
+                let productsData = []
 
                 if (productsResponse.ok) {
                     const productsJson = await productsResponse.json()
-                    productsData = productsJson.products || productDummyData
+                    productsData = productsJson.products || []
+                    console.log('✅ Products fetched from database:', productsData.length)
+                } else {
+                    console.error('❌ Failed to fetch products from database')
                 }
 
                 setProducts(productsData)
@@ -243,52 +245,20 @@ export default function AdminDashboard() {
                 setLastOrderSync(new Date())
             }
         } catch (error) {
-            console.error('Error fetching dashboard data:', error)
+            console.error('❌ Error fetching dashboard data:', error)
+            toast.error('Failed to load dashboard data. Please check your connection.')
 
-            // Fallback to localStorage if API fails
-            let allOrdersData = []
-            const userOrders = localStorage.getItem('userOrders')
-            const allOrders = localStorage.getItem('allOrders')
-
-            if (userOrders) {
-                try {
-                    const parsed = JSON.parse(userOrders)
-                    allOrdersData = Array.isArray(parsed) ? parsed : [parsed]
-                } catch (e) { }
-            }
-
-            if (allOrders) {
-                try {
-                    const parsed = JSON.parse(allOrders)
-                    const orders = Array.isArray(parsed) ? parsed : [parsed]
-                    allOrdersData = [...allOrdersData, ...orders]
-                } catch (e) { }
-            }
-
-            const uniqueOrders = Array.from(new Map(
-                allOrdersData.map(order => [order.id || order.orderId || Date.now(), order])
-            ).values())
-
-            const finalOrders = uniqueOrders.length > 0 ? uniqueOrders : orderDummyData
-
-            setProducts(productDummyData)
-            setOrders(finalOrders)
-
-            const totalProducts = productDummyData.length
-            const totalOrders = finalOrders.length
-            const totalRevenue = finalOrders.reduce((sum, order) => sum + parseFloat(order.total), 0).toFixed(2)
-            const revenueData = generateRevenueData(finalOrders, timePeriod)
-
+            // DO NOT use dummy data - show empty state instead
+            setProducts([])
+            setOrders([])
             setDashboardData({
-                products: totalProducts,
-                revenue: totalRevenue,
-                orders: totalOrders,
-                stores: 2,
-                allOrders: revenueData,
+                products: 0,
+                revenue: 0,
+                orders: 0,
+                stores: 0,
+                allOrders: [],
             })
-            setLastOrderSync(new Date())
-        }
-        finally {
+        } finally {
             setLoading(false)
             setIsSyncingOrders(false)
         }
@@ -414,10 +384,10 @@ export default function AdminDashboard() {
             crashCashValue: Math.floor(parseInt(formData.price) / 10),
             crashCashMin: Math.floor(parseInt(formData.price) / 100),
             crashCashMax: Math.floor(parseInt(formData.price) / 10),
-            images: productImages.length > 0 ? productImages : [productDummyData[0].images[0]],
+            images: productImages.length > 0 ? productImages : ['/placeholder-product.png'],
             storeId: "seller_1",
             inStock: true,
-            store: productDummyData[0].store,
+            store: { name: "CrashKart Store", id: "seller_1" },
             rating: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

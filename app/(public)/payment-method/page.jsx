@@ -39,8 +39,9 @@ export default function PaymentMethod() {
     // Helper function to open Cashfree checkout
     const openCashfreeCheckout = (sessionId) => {
         try {
+            // ALWAYS use sandbox for testing
             const cashfree = window.Cashfree({
-                mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === 'production' ? 'production' : 'sandbox'
+                mode: 'sandbox'
             })
             
             const checkoutOptions = {

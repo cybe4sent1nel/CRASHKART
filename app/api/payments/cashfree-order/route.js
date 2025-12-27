@@ -128,7 +128,8 @@ export async function POST(req) {
         // Get Cashfree credentials from environment
         const cashfreeAppId = process.env.CASHFREE_APP_ID
         const cashfreeSecretKey = process.env.CASHFREE_SECRET_KEY
-        const cashfreeEnvironment = process.env.CASHFREE_ENVIRONMENT || 'sandbox'
+        // ALWAYS use sandbox for testing - change to 'production' only when going live
+        const cashfreeEnvironment = 'sandbox'
 
         if (!cashfreeAppId || !cashfreeSecretKey) {
             console.warn('Cashfree credentials not configured')
@@ -138,10 +139,12 @@ export async function POST(req) {
             )
         }
 
-        // Base URL for Cashfree API
-        const baseUrl = cashfreeEnvironment === 'production' 
-            ? 'https://api.cashfree.com'
-            : 'https://sandbox.cashfree.com'
+        // Base URL for Cashfree API - forced to sandbox for testing
+        const baseUrl = 'https://sandbox.cashfree.com'
+        
+        console.log('💳 Cashfree Configuration:')
+        console.log('  Environment: SANDBOX (Testing Mode)')
+        console.log('  Base URL:', baseUrl)
 
         // Get user from database - try userId first, then email
          let user = null

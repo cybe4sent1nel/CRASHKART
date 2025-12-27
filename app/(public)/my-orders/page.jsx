@@ -112,7 +112,8 @@ export default function MyOrders() {
             
             if (data.success) {
                 // Redirect to Cashfree payment page
-                const cashfree = window.Cashfree({ mode: process.env.NEXT_PUBLIC_CASHFREE_MODE || 'sandbox' })
+                // ALWAYS use sandbox for testing
+                const cashfree = window.Cashfree({ mode: 'sandbox' })
                 cashfree.checkout({
                     paymentSessionId: data.paymentSessionId,
                     returnUrl: `${window.location.origin}/order-success/${order.id}`
