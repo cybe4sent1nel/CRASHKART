@@ -68,6 +68,8 @@ async function handleOrdersRequest(request) {
             );
         }
 
+        console.log(`📦 [Get User Orders] Fetching orders for user: ${user.email} (${user.id})`)
+        
         // Fetch all orders for this user
         const orders = await prisma.order.findMany({
             where: {
@@ -101,6 +103,11 @@ async function handleOrdersRequest(request) {
                 createdAt: 'desc'
             }
         });
+        
+        console.log(`✅ [Get User Orders] Found ${orders.length} orders for user ${user.email}`)
+        if (orders.length > 0) {
+            console.log('🔍 Order IDs:', orders.map(o => o.id).slice(0, 5).join(', '))
+        }
 
         // Format orders for response
         const formattedOrders = orders.map(order => ({

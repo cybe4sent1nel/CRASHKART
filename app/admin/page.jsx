@@ -169,24 +169,43 @@ export default function AdminDashboard() {
                 // Store full analytics data for advanced charts
                 setAnalyticsData(data)
 
-                // Fetch ALL orders without limit for complete data
-                const ordersResponse = await fetch('/api/admin/orders?limit=500')
+                // Fetch ALL orders without any limit
+                console.log('📡 Fetching orders from API...')
+                const ordersResponse = await fetch('/api/admin/orders?limit=10000', {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    cache: 'no-store' // Ensure fresh data on every request
+                })
                 let ordersData = []
 
                 if (ordersResponse.ok) {
                     const ordersJson = await ordersResponse.json()
                     ordersData = ordersJson.orders || []
-                    console.log('Orders fetched from API:', ordersData.length, ordersData)
+                    console.log('✅ Orders fetched from API:', ordersData.length)
+                    console.log('📊 Total orders in DB:', ordersJson.total)
+                    if (ordersData.length > 0) {
+                        console.log('🔍 First order:', ordersData[0]?.id, ordersData[0]?.createdAt)
+                        console.log('🔍 Last order:', ordersData[ordersData.length - 1]?.id, ordersData[ordersData.length - 1]?.createdAt)
+                    }
                 } else {
-                    const errorData = await ordersResponse.json().catch(() => ({}))
-                    console.error('Orders API error:', ordersResponse.status, ordersResponse.statusText, errorData)
+                    const errorText = await ordersResponse.text()
+                    console.error('❌ Orders API error:', {
+                        status: ordersResponse.status,
+                        statusText: ordersResponse.statusText,
+                        error: errorText
+                    })
+                    toast.error(`Failed to load orders: ${ordersResponse.status}`)
+                    
                     // Fallback to localStorage if API fails
                     const userOrders = localStorage.getItem('userOrders')
                     if (userOrders) {
                         try {
                             const parsed = JSON.parse(userOrders)
                             ordersData = Array.isArray(parsed) ? parsed : [parsed]
+                            console.log('📦 Loaded orders from localStorage:', ordersData.length)
                         } catch (e) {
+                            console.error('Failed to parse localStorage orders:', e)
                             ordersData = []
                         }
                     }

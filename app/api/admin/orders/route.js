@@ -5,6 +5,8 @@ import { triggerOrderStatusEmail } from '@/lib/emailTriggerService';
 // GET - List all orders with filters
 export async function GET(request) {
     try {
+        console.log('🔍 [Admin Orders API] Request received')
+        
         const { searchParams } = new URL(request.url);
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
@@ -15,6 +17,8 @@ export async function GET(request) {
         const paymentStatus = searchParams.get('paymentStatus');
         const sortBy = searchParams.get('sortBy') || 'createdAt';
         const sortOrder = searchParams.get('sortOrder') || 'desc';
+
+        console.log('📋 Query params:', { page, limit, status, search, paymentStatus })
 
         const skip = (page - 1) * limit;
 
@@ -46,6 +50,10 @@ export async function GET(request) {
             ];
         }
 
+        console.log('🔎 Database query where:', JSON.stringify(where, null, 2))
+
+        console.log('🔍 Where clause:', JSON.stringify(where, null, 2))
+        
         const [orders, total] = await Promise.all([
             prisma.order.findMany({
                 where,
@@ -79,6 +87,11 @@ export async function GET(request) {
             }),
             prisma.order.count({ where })
         ]);
+        
+        console.log(`✅ [Admin Orders API] Found ${orders.length} orders out of ${total} total`)
+        console.log('🔢 Order IDs:', orders.map(o => o.id).join(', '))
+
+        console.log(`✅ Found ${orders.length} orders (total: ${total})`)
 
         // Enhance orders with shipment info
         const enrichedOrders = orders.map(order => ({
@@ -127,15 +140,17 @@ export async function GET(request) {
         });
 
     } catch (error) {
-        console.error('Error fetching orders:', error);
+        console.error('❌ [Admin Orders API] Error:', error);
+        console.error('Stack:', error.stack);
         return NextResponse.json({ 
             success: false,
             error: 'Failed to fetch orders',
             message: error.message,
+            details: error.stack,
             orders: [],
             pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
             stats: {}
-        }, { status: 200 });
+        }, { status: 500 });
     }
 }
 
