@@ -76,9 +76,6 @@ export default function RewardsPage() {
             </div>
         )
     }
-            toast.success('Reward deleted')
-        }
-    }
 
     if (loading) {
         return (
