@@ -162,8 +162,6 @@ export async function POST(req) {
                 console.warn('⚠️ No order found matching Cashfree Order ID:', order_id)
                 return Response.json({ message: 'Order not found' }, { status: 404 })
             }
-                console.warn(`No order found for Cashfree order ID: ${order_id}`)
-            }
 
         } else if (eventType === 'PAYMENT_FAILED') {
             // Payment failed
