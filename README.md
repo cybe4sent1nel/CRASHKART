@@ -16,7 +16,7 @@
   
   **Designed & Developed by [Fahad Khan](https://github.com/cybe4sent1nel) (cybe4sent1nel)**
   
-  [Demo](https://crashkart.vercel.app) • [Report Bug](https://github.com/cybe4sent1nel/crashkart/issues) • [Request Feature](https://github.com/cybe4sent1nel/crashkart/issues)
+  [Demo](https://crashkart.vercel.app) • [Admin Panel](https://crashkart.vercel.app/admin/login) • [Report Bug](https://github.com/cybe4sent1nel/crashkart/issues) • [Request Feature](https://github.com/cybe4sent1nel/crashkart/issues)
 </div>
 
 ---
@@ -57,11 +57,15 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **Order Discounts** - Apply CrashCash at checkout for instant savings
 
 ### 📦 **Order Management**
-- **Real-time Order Tracking** - Live status updates from placement to delivery
+- **Real-time Order Tracking** - Live status updates with animated Lottie icons
 - **Order History** - Complete transaction history with detailed breakdowns
 - **Cancellation Support** - Cancel orders before shipment with instant refunds
-- **Return & Refund** - Hassle-free 7-day return policy
-- **Multi-product Tracking** - Track multiple orders simultaneously
+- **Return & Refund** - Full return flow tracking: Return Accepted → Picked Up → Refund Completed
+- **Multi-product Tracking** - Track multiple orders simultaneously with separate shipment IDs
+- **Animated Status Updates** - Beautiful animations for each order status (processing, shipped, delivered, return, refund, cancelled)
+- **Invoice Generation** - Download/print order invoices with one click
+- **Payment Status Toggle** - Admin can toggle payment status (Paid/Pending) with one click
+- **Pay Now Option** - Users can pay for pending orders directly from My Orders page
 
 ### 🤖 **AI-Powered Support (Inquirae)**
 - **Intelligent Chatbot** - Context-aware responses using Llama 3.2
@@ -95,14 +99,19 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **Toast Notifications** - Non-intrusive feedback for user actions
 - **Responsive Design** - Mobile-first approach with fluid layouts
 - **Accessibility** - WCAG compliant with keyboard navigation
+- **Lottie Animations** - Smooth, engaging animations for all order statuses
+- **Interactive Tracking** - Expandable tracking timeline with visual progress indicators
 
 ### 🏪 **Seller Dashboard** (Admin)
 - **Product Management** - Add, edit, delete products with bulk operations
-- **Order Processing** - Manage orders, update statuses, handle cancellations
+- **Order Processing** - Manage orders, update statuses (including return/refund flows), handle cancellations
+- **Payment Management** - Toggle payment status (Paid/Pending) with one click
 - **Inventory Control** - Track stock levels with low-stock alerts
 - **Sales Analytics** - Revenue reports and sales trends
 - **Customer Management** - View customer data and order history
+- **Return & Refund Handling** - Process returns, pickups, and refunds seamlessly
 - **Store Settings** - Configure shipping, returns, and business details
+- **Admin Authentication** - Secure login at `/admin/login` (Production: https://crashkart.vercel.app/admin/login | Local: http://localhost:3000/admin/login)
 
 ### 🎁 **Gamification & Rewards**
 - **CrashCash System** - Virtual currency earned on purchases
@@ -409,11 +418,15 @@ crashkart/
 
 ### For Admin
 
-1. **Access Admin Panel** - Navigate to `/admin`
+1. **Access Admin Panel** 
+   - **Production**: https://crashkart.vercel.app/admin/login
+   - **Local Development**: http://localhost:3000/admin/login
 2. **Manage Products** - Add/edit/delete products
-3. **Process Orders** - Update order statuses
-4. **View Analytics** - Check sales reports
-5. **Handle Support** - Review and resolve tickets
+3. **Process Orders** - Update order statuses (including return/refund flows)
+4. **Toggle Payment Status** - Click payment badge to mark orders as Paid/Pending
+5. **View Analytics** - Check sales reports
+6. **Handle Support** - Review and resolve tickets
+7. **Process Returns** - Manage return requests and issue refunds
 
 ---
 

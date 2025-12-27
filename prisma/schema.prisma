@@ -67,6 +67,9 @@ enum OrderStatus {
     DELIVERED
     PAYMENT_PENDING
     CANCELLED
+    RETURN_ACCEPTED
+    RETURN_PICKED_UP
+    REFUND_COMPLETED
 }
 
 enum PaymentMethod {
@@ -112,7 +115,7 @@ model OrderItem {
     productId       String        @db.ObjectId
     quantity        Int
     price           Float
-    shipmentId      String?       @unique // Generated only for multi-product orders. Single product orders use orderId
+    shipmentId      String?       // Generated only for multi-product orders. Single product orders use orderId
     status          OrderStatus   @default(ORDER_PLACED) // Individual product/shipment status
     trackingNumber  String?       // Tracking number for this shipment
     estimatedDelivery DateTime?   // Estimated delivery for this shipment
@@ -125,6 +128,7 @@ model OrderItem {
     product Product @relation(fields: [productId], references: [id])
     
     @@index([orderId])
+    @@index([shipmentId])
 }
 
 // Required for creating a Rating: rating, review, userId, productId
@@ -323,15 +327,23 @@ model ReturnRequest {
     quantity         Int
     issue            String   // Issue category: defective, wrong-item, not-as-described, damaged, other
     description      String   // Detailed description of issue
-    images           String[] // Array of image URLs
+    images           String[] // Array of image URLs (2-4 images)
+    videos           String[] @default([]) // Array of video URLs (max 2)
     status           String   @default("requested") // requested, approved, rejected, returned, refunded, replacement-shipped
+    requestType      String   @default("return") // return or replace
     refundAmount     Float
-    refundMethod     String?  // stripe, cod, credit-note
+    refundMethod     String?  // stripe, cashfree, cod, credit-note
+    
+    // Customer bank details for COD refunds
+    customerName     String?  // Customer name for bank transfer
+    customerMobile   String?  // Customer contact number
     bankAccountNo    String?  // For COD refunds
     ifscCode         String?  // For COD refunds
+    
     rmaNumber        String   @unique
     approvedAt       DateTime?
     rejectedAt       DateTime?
+    pickedUpAt       DateTime? // When return item was picked up
     refundedAt       DateTime?
     approverComments String?
     createdAt        DateTime @default(now())

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { triggerOrderConfirmationEmail } from '@/lib/emailTriggerService'
+import { sendOrderPlacedEmail } from '@/lib/emailService'
 
 const prisma = new PrismaClient()
 
@@ -139,6 +140,33 @@ export async function POST(req) {
 
         // Calculate CrashCash reward (10% of order total)
         const crashCashReward = Math.floor(total * 0.1)
+
+        // Fetch the complete order with relations for email
+        const completeOrder = await prisma.order.findUnique({
+            where: { id: order.id },
+            include: {
+                user: true,
+                address: true,
+                orderItems: {
+                    include: {
+                        product: true
+                    }
+                }
+            }
+        })
+
+        // Send beautiful order placed email
+        try {
+            await sendOrderPlacedEmail({
+                order: completeOrder,
+                customerEmail: user.email,
+                customerName: user.name || user.email.split('@')[0]
+            })
+            console.log('✅ Order placed email sent successfully')
+        } catch (emailError) {
+            console.error('❌ Failed to send order placed email:', emailError)
+            // Don't fail the order if email fails
+        }
 
         // Send order confirmation email with tracking link using automated trigger
         try {

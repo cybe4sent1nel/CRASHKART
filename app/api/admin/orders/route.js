@@ -157,11 +157,14 @@ export async function PUT(request) {
             'SHIPPED': 'SHIPPED',
             'DELIVERED': 'DELIVERED',
             'CANCELLED': 'CANCELLED',
-            'PAYMENT_PENDING': 'PAYMENT_PENDING'
+            'PAYMENT_PENDING': 'PAYMENT_PENDING',
+            'RETURN_ACCEPTED': 'RETURN_ACCEPTED',
+            'RETURN_PICKED_UP': 'RETURN_PICKED_UP',
+            'REFUND_COMPLETED': 'REFUND_COMPLETED'
         };
 
         const mappedStatus = statusMap[status] || status;
-        const validStatuses = ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'PAYMENT_PENDING'];
+        const validStatuses = ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'PAYMENT_PENDING', 'RETURN_ACCEPTED', 'RETURN_PICKED_UP', 'REFUND_COMPLETED'];
 
         if (!validStatuses.includes(mappedStatus)) {
             return NextResponse.json({ error: 'Invalid status' }, { status: 400 });

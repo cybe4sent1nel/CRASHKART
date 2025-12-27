@@ -13,7 +13,10 @@ const OrderTracking = ({ order, onStatusChange }) => {
         'PROCESSING': 'Processing',
         'SHIPPED': 'Shipped',
         'DELIVERED': 'Delivered',
-        'CANCELLED': 'Cancelled'
+        'CANCELLED': 'Cancelled',
+        'RETURN_ACCEPTED': 'Return Accepted',
+        'RETURN_PICKED_UP': 'Return Picked Up',
+        'REFUND_COMPLETED': 'Refund Completed'
     };
 
     // URL-based animation mapping (no imports needed)
@@ -21,7 +24,11 @@ const OrderTracking = ({ order, onStatusChange }) => {
         'ORDER_PLACED': '/animations/Order Confirmed.json',
         'PROCESSING': '/animations/Warehouse and delivery.json',
         'SHIPPED': '/animations/Waiting the Courier.json',
-        'DELIVERED': '/animations/Success celebration.json'
+        'DELIVERED': '/animations/Success celebration.json',
+        'CANCELLED': '/animations/Cancelled Parcel.json',
+        'RETURN_ACCEPTED': '/animations/Order packed.json',
+        'RETURN_PICKED_UP': '/animations/return.json',
+        'REFUND_COMPLETED': '/animations/Collecting Money.json'
     };
 
     // Convert any status format to standardized format
@@ -45,6 +52,15 @@ const OrderTracking = ({ order, onStatusChange }) => {
         }
         if (upper === 'CANCELLED' || upper.includes('CANCEL')) {
             return 'CANCELLED';
+        }
+        if (upper === 'RETURN_ACCEPTED' || upper.includes('RETURN') && upper.includes('ACCEPT')) {
+            return 'RETURN_ACCEPTED';
+        }
+        if (upper === 'RETURN_PICKED_UP' || upper.includes('RETURN') && upper.includes('PICK')) {
+            return 'RETURN_PICKED_UP';
+        }
+        if (upper === 'REFUND_COMPLETED' || upper.includes('REFUND')) {
+            return 'REFUND_COMPLETED';
         }
 
         // If no match, return uppercase version
@@ -95,36 +111,95 @@ const OrderTracking = ({ order, onStatusChange }) => {
         console.log('  normalizedStatus:', normalizedStatus);
         console.log('  timestamp:', new Date().toLocaleTimeString());
 
-        // Define all tracking stages
-        const stages = [
-            {
-                id: 'ORDER_PLACED',
-                label: 'Order Placed',
-                date: order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN') : 'Pending',
-                completed: ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(normalizedStatus),
-                active: normalizedStatus === 'ORDER_PLACED'
-            },
-            {
-                id: 'PROCESSING',
-                label: 'Processing',
-                date: 'Pending',
-                completed: ['PROCESSING', 'SHIPPED', 'DELIVERED'].includes(normalizedStatus),
-                active: normalizedStatus === 'PROCESSING'
-            },
-            {
-                id: 'SHIPPED',
-                label: 'Shipped',
-                date: 'Pending',
-                completed: ['SHIPPED', 'DELIVERED'].includes(normalizedStatus),
-                active: normalizedStatus === 'SHIPPED'
-            },
-            {
-                id: 'DELIVERED',
-                label: 'Delivered',
-                date: 'Pending',
-                completed: normalizedStatus === 'DELIVERED',
-                active: normalizedStatus === 'DELIVERED'
-            }
+        // Check if this is a return/refund flow
+        const isReturnFlow = ['RETURN_ACCEPTED', 'RETURN_PICKED_UP', 'REFUND_COMPLETED'].includes(normalizedStatus);
+        const isCancelled = normalizedStatus === 'CANCELLED';
+
+        let stages = [];
+
+        if (isReturnFlow) {
+            // Return/Refund flow stages
+            stages = [
+                {
+                    id: 'DELIVERED',
+                    label: 'Order Delivered',
+                    date: order?.updatedAt ? new Date(order.updatedAt).toLocaleDateString('en-IN') : 'Completed',
+                    completed: true,
+                    active: false
+                },
+                {
+                    id: 'RETURN_ACCEPTED',
+                    label: 'Return Accepted',
+                    date: 'Pending',
+                    completed: ['RETURN_ACCEPTED', 'RETURN_PICKED_UP', 'REFUND_COMPLETED'].includes(normalizedStatus),
+                    active: normalizedStatus === 'RETURN_ACCEPTED'
+                },
+                {
+                    id: 'RETURN_PICKED_UP',
+                    label: 'Return Picked Up',
+                    date: 'Pending',
+                    completed: ['RETURN_PICKED_UP', 'REFUND_COMPLETED'].includes(normalizedStatus),
+                    active: normalizedStatus === 'RETURN_PICKED_UP'
+                },
+                {
+                    id: 'REFUND_COMPLETED',
+                    label: 'Refund Completed',
+                    date: 'Pending',
+                    completed: normalizedStatus === 'REFUND_COMPLETED',
+                    active: normalizedStatus === 'REFUND_COMPLETED'
+                }
+            ];
+        } else if (isCancelled) {
+            // Cancelled flow - show stages up to cancellation
+            stages = [
+                {
+                    id: 'ORDER_PLACED',
+                    label: 'Order Placed',
+                    date: order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN') : 'Completed',
+                    completed: true,
+                    active: false
+                },
+                {
+                    id: 'CANCELLED',
+                    label: 'Order Cancelled',
+                    date: order?.canceledAt ? new Date(order.canceledAt).toLocaleDateString('en-IN') : 'Pending',
+                    completed: true,
+                    active: true
+                }
+            ];
+        } else {
+            // Normal order flow stages
+            stages = [
+                {
+                    id: 'ORDER_PLACED',
+                    label: 'Order Placed',
+                    date: order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN') : 'Pending',
+                    completed: ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(normalizedStatus),
+                    active: normalizedStatus === 'ORDER_PLACED'
+                },
+                {
+                    id: 'PROCESSING',
+                    label: 'Processing',
+                    date: 'Pending',
+                    completed: ['PROCESSING', 'SHIPPED', 'DELIVERED'].includes(normalizedStatus),
+                    active: normalizedStatus === 'PROCESSING'
+                },
+                {
+                    id: 'SHIPPED',
+                    label: 'Shipped',
+                    date: 'Pending',
+                    completed: ['SHIPPED', 'DELIVERED'].includes(normalizedStatus),
+                    active: normalizedStatus === 'SHIPPED'
+                },
+                {
+                    id: 'DELIVERED',
+                    label: 'Delivered',
+                    date: 'Pending',
+                    completed: normalizedStatus === 'DELIVERED',
+                    active: normalizedStatus === 'DELIVERED'
+                }
+            ];
+        }
         ];
 
         setTrackingStages(stages);
@@ -182,32 +257,36 @@ const OrderTracking = ({ order, onStatusChange }) => {
 
     return (
         <div className="w-full bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8">
-            {/* Animation Section */}
-            {!isCancelled && (
-                <div className="mb-8 h-48 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 rounded-xl">
-                    {currentAnimation && !isLoading ? (
-                        <div key={`animation-${currentStatus}`} className="w-full h-full flex items-center justify-center">
-                            <Lottie
-                                animationData={currentAnimation}
-                                loop={true}
-                                autoplay={true}
-                                style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    maxWidth: '300px',
-                                    maxHeight: '300px'
-                                }}
-                            />
-                        </div>
-                    ) : (
-                        <div className="text-center">
-                            <p className="text-slate-500 dark:text-slate-400 text-sm">
-                                {isLoading ? '⏳ Loading animation...' : '⚠️ Animation unavailable'}
-                            </p>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Animation Section - Show for all statuses */}
+            <div className="mb-8 h-64 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 rounded-xl">
+                {currentAnimation && !isLoading ? (
+                    <div key={`animation-${currentStatus}`} className="w-full h-full flex items-center justify-center p-4">
+                        <Lottie
+                            animationData={currentAnimation}
+                            loop={true}
+                            autoplay={true}
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                maxWidth: '400px',
+                                maxHeight: '400px'
+                            }}
+                        />
+                    </div>
+                ) : isLoading ? (
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">Loading animation...</p>
+                    </div>
+                ) : (
+                    <div className="text-center">
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">
+                            Animation for {currentStatus}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-2">Check console for errors</p>
+                    </div>
+                )}
+            </div>
 
             {/* Status Text */}
             <div className="text-center mb-8">

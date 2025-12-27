@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { PrismaClient } from '@prisma/client'
 import { sendOrderConfirmationWithInvoice } from '@/lib/email'
 import { getInvoiceAttachment } from '@/lib/invoiceGenerator'
+import { sendOrderPlacedEmail } from '@/lib/emailService'
 
 const prisma = new PrismaClient()
 
@@ -82,6 +83,19 @@ export async function POST(req) {
                         })
                     }
                 })
+
+                // Send order placed email with beautiful template
+                try {
+                    await sendOrderPlacedEmail({
+                        order: order,
+                        customerEmail: order.user.email,
+                        customerName: order.user.name || order.user.email.split('@')[0]
+                    })
+                    console.log('✅ Order placed email sent successfully')
+                } catch (emailError) {
+                    console.error('❌ Failed to send order placed email:', emailError)
+                    // Don't fail the webhook if email fails
+                }
 
                 // Send order confirmation email with invoice
                 try {

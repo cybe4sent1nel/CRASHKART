@@ -110,6 +110,10 @@ export default function StoreOrders() {
                                             <option value="PROCESSING">PROCESSING</option>
                                             <option value="SHIPPED">SHIPPED</option>
                                             <option value="DELIVERED">DELIVERED</option>
+                                            <option value="CANCELLED">CANCELLED</option>
+                                            <option value="RETURN_ACCEPTED">RETURN_ACCEPTED</option>
+                                            <option value="RETURN_PICKED_UP">RETURN_PICKED_UP</option>
+                                            <option value="REFUND_COMPLETED">REFUND_COMPLETED</option>
                                         </select>
                                     </td>
                                     <td className="px-4 py-3 text-gray-500">

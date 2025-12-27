@@ -1,12 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronDown, Package, Truck, CheckCircle, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Lottie from 'lottie-react'
-import WarehouseAnimation from '@/components/animations/WarehouseAnimation'
-import ScooterAnimation from '@/components/animations/ScooterAnimation'
-import SuccessAnimation from '@/components/animations/SuccessAnimation'
 
 /**
  * Multi-Product Tracking Component
@@ -14,30 +11,97 @@ import SuccessAnimation from '@/components/animations/SuccessAnimation'
  */
 export default function MultiProductTracking({ order, items }) {
     const [expandedShipment, setExpandedShipment] = useState(null)
-    const [selectedAnimation, setSelectedAnimation] = useState({})
+    const [animations, setAnimations] = useState({})
+
+    // URL-based animation mapping
+    const ANIMATION_MAP = {
+        'ORDER_PLACED': '/animations/Order Confirmed.json',
+        'PROCESSING': '/animations/Warehouse and delivery.json',
+        'SHIPPED': '/animations/Waiting the Courier.json',
+        'DELIVERED': '/animations/Success celebration.json',
+        'CANCELLED': '/animations/Cancelled Parcel.json',
+        'RETURN_ACCEPTED': '/animations/Order packed.json',
+        'RETURN_PICKED_UP': '/animations/return.json',
+        'REFUND_COMPLETED': '/animations/Collecting Money.json'
+    }
 
     // Map shipment status to step number
     const getTrackingStep = (status) => {
-        const statusLower = String(status).toLowerCase()
+        const statusLower = String(status).toLowerCase().replace(/ /g, '_')
+        // Return/Refund flow
+        if (statusLower.includes('refund')) return 7
+        if (statusLower.includes('return') && statusLower.includes('pick')) return 6
+        if (statusLower.includes('return') && statusLower.includes('accept')) return 5
+        // Cancelled
+        if (statusLower.includes('cancelled')) return 8
+        // Normal flow
         if (statusLower.includes('delivered')) return 4
         if (statusLower.includes('shipped') || statusLower.includes('in_transit')) return 3
         if (statusLower.includes('processing')) return 2
         return 1
     }
 
-    // Get animation based on status
-    const getAnimationForStatus = (status) => {
-        const statusLower = String(status).toLowerCase()
-        if (statusLower.includes('processing')) return 'warehouse'
-        if (statusLower.includes('shipped') || statusLower.includes('in_transit')) return 'delivery'
-        if (statusLower.includes('delivered')) return 'success'
-        return 'warehouse'
+    // Get normalized status
+    const normalizeStatus = (status) => {
+        if (!status) return 'ORDER_PLACED'
+        const upper = String(status).toUpperCase().replace(/ /g, '_')
+        if (upper.includes('REFUND')) return 'REFUND_COMPLETED'
+        if (upper.includes('RETURN') && upper.includes('PICK')) return 'RETURN_PICKED_UP'
+        if (upper.includes('RETURN') && upper.includes('ACCEPT')) return 'RETURN_ACCEPTED'
+        if (upper.includes('CANCEL')) return 'CANCELLED'
+        if (upper.includes('DELIVER')) return 'DELIVERED'
+        if (upper.includes('SHIP')) return 'SHIPPED'
+        if (upper.includes('PROCESS')) return 'PROCESSING'
+        return 'ORDER_PLACED'
     }
 
-    // Build tracking steps
+    // Load animations on mount
+    useEffect(() => {
+        const loadAnimations = async () => {
+            const loadedAnimations = {}
+            for (const [key, url] of Object.entries(ANIMATION_MAP)) {
+                try {
+                    const response = await fetch(url)
+                    if (response.ok) {
+                        const data = await response.json()
+                        if (data && data.v) {
+                            loadedAnimations[key] = data
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Failed to load animation for ${key}:`, err)
+                }
+            }
+            setAnimations(loadedAnimations)
+        }
+        loadAnimations()
+    }, [])
+
+    // Build tracking steps based on status
     const buildTrackingSteps = (status) => {
         const step = getTrackingStep(status)
         const today = new Date().toLocaleDateString()
+        const statusLower = String(status).toLowerCase().replace(/ /g, '_')
+        
+        // Cancelled flow
+        if (statusLower.includes('cancelled')) {
+            return [
+                { label: 'Order Placed', completed: true, date: today },
+                { label: 'Cancelled', completed: true, date: today }
+            ]
+        }
+        
+        // Return/Refund flow
+        if (statusLower.includes('return') || statusLower.includes('refund')) {
+            return [
+                { label: 'Order Delivered', completed: true, date: today },
+                { label: 'Return Accepted', completed: step >= 5, date: step >= 5 ? today : 'Pending' },
+                { label: 'Return Picked Up', completed: step >= 6, date: step >= 6 ? today : 'Pending' },
+                { label: 'Refund Completed', completed: step >= 7, date: step >= 7 ? today : 'Pending' }
+            ]
+        }
+        
+        // Normal flow
         return [
             { label: 'Order Placed', completed: true, date: today },
             { label: 'Processing', completed: step >= 2, date: step >= 2 ? today : 'Pending' },
@@ -48,6 +112,9 @@ export default function MultiProductTracking({ order, items }) {
 
     const getStatusColor = (status) => {
         const statusLower = String(status).toLowerCase()
+        if (statusLower.includes('refund')) return 'bg-green-100 text-green-700 border-green-300'
+        if (statusLower.includes('return')) return 'bg-orange-100 text-orange-700 border-orange-300'
+        if (statusLower.includes('cancelled')) return 'bg-red-100 text-red-700 border-red-300'
         if (statusLower.includes('delivered')) return 'bg-green-100 text-green-700 border-green-300'
         if (statusLower.includes('shipped') || statusLower.includes('in_transit')) return 'bg-blue-100 text-blue-700 border-blue-300'
         if (statusLower.includes('processing')) return 'bg-yellow-100 text-yellow-700 border-yellow-300'
@@ -56,6 +123,9 @@ export default function MultiProductTracking({ order, items }) {
 
     const getStatusIcon = (status) => {
         const statusLower = String(status).toLowerCase()
+        if (statusLower.includes('refund')) return <CheckCircle size={20} />
+        if (statusLower.includes('return')) return <Package size={20} />
+        if (statusLower.includes('cancelled')) return <Clock size={20} />
         if (statusLower.includes('delivered')) return <CheckCircle size={20} />
         if (statusLower.includes('shipped') || statusLower.includes('in_transit')) return <Truck size={20} />
         if (statusLower.includes('processing')) return <Package size={20} />
@@ -72,7 +142,8 @@ export default function MultiProductTracking({ order, items }) {
                 const shipmentId = item.shipmentId || `SHP-${idx + 1}`
                 const isExpanded = expandedShipment === shipmentId
                 const trackingSteps = buildTrackingSteps(item.status)
-                const animationType = getAnimationForStatus(item.status)
+                const normalizedStatus = normalizeStatus(item.status)
+                const animationData = animations[normalizedStatus]
 
                 return (
                     <motion.div
@@ -125,15 +196,18 @@ export default function MultiProductTracking({ order, items }) {
                                 >
                                     <div className="p-6 space-y-6">
                                         {/* Animation Display */}
-                                        <div className="flex justify-center h-40">
-                                            {animationType === 'warehouse' && (
-                                                <WarehouseAnimation width="150px" height="150px" />
-                                            )}
-                                            {animationType === 'delivery' && (
-                                                <ScooterAnimation width="150px" height="150px" />
-                                            )}
-                                            {animationType === 'success' && (
-                                                <SuccessAnimation width="150px" height="150px" />
+                                        <div className="flex justify-center items-center h-64 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 rounded-xl">
+                                            {animationData ? (
+                                                <Lottie
+                                                    animationData={animationData}
+                                                    loop={true}
+                                                    style={{ width: '200px', height: '200px' }}
+                                                />
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                                                    <p className="text-sm text-slate-600 dark:text-slate-400">Loading animation...</p>
+                                                </div>
                                             )}
                                         </div>
 

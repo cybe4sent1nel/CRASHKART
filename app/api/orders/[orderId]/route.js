@@ -34,13 +34,15 @@ export async function GET(req, { params }) {
             )
         }
 
-        // If user is authenticated, verify they own this order
+        // If user is authenticated, verify they own this order or are admin
         if (session?.user?.email) {
             const user = await prisma.user.findUnique({
                 where: { email: session.user.email }
             })
 
-            if (user && order.userId !== user.id) {
+            // Allow access if user owns the order OR is admin
+            const isAdmin = user?.isAdmin === true || session.user.email === 'crashkart.help@gmail.com'
+            if (user && order.userId !== user.id && !isAdmin) {
                 return Response.json(
                     { message: 'Unauthorized' },
                     { status: 403 }

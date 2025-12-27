@@ -432,6 +432,35 @@ export default function AdminDashboard() {
         toast.success("Product deleted!")
     }
 
+    const handleUpdatePaymentStatus = async (orderId, isPaid) => {
+        try {
+            const response = await fetch('/api/admin/orders/update-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId, isPaid })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update payment status');
+            }
+
+            const data = await response.json();
+            
+            // Update local state
+            const updatedOrders = orders.map(order =>
+                (order.id === orderId || order.orderId === orderId) 
+                    ? { ...order, isPaid: data.order.isPaid } 
+                    : order
+            );
+            setOrders(updatedOrders);
+            
+            toast.success(`Payment status updated to ${isPaid ? 'Paid' : 'Pending'}`);
+        } catch (error) {
+            console.error('Error updating payment status:', error);
+            toast.error('Failed to update payment status: ' + error.message);
+        }
+    }
+
     const handleUpdateOrderStatus = async (orderId, newStatus) => {
         try {
             // Normalize the status to standard format
@@ -862,7 +891,7 @@ export default function AdminDashboard() {
                                                         {/* Inline Dropdown */}
                                                         {expandedStatusOrder === (order.id || order.orderId) && (
                                                             <div className="absolute top-full left-0 mt-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg z-10 min-w-[150px]">
-                                                                {['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
+                                                                {['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURN_ACCEPTED', 'RETURN_PICKED_UP', 'REFUND_COMPLETED'].map((status) => (
                                                                     <button
                                                                         key={status}
                                                                         onClick={() => {
@@ -882,13 +911,17 @@ export default function AdminDashboard() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm">
-                                                    <span className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-                                                        order.isPaid === true
-                                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                                            : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                                                    }`}>
+                                                    <button
+                                                        onClick={() => handleUpdatePaymentStatus(order.id || order.orderId, !order.isPaid)}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer hover:opacity-80 transition ${
+                                                            order.isPaid === true
+                                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                                                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                                        }`}
+                                                        title="Click to toggle payment status"
+                                                    >
                                                         {order.isPaid === true ? '✓ Paid' : 'Pending'}
-                                                    </span>
+                                                    </button>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                                                     {order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN', {
@@ -957,7 +990,7 @@ export default function AdminDashboard() {
                                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Current Status: <span className="font-medium text-slate-800 dark:text-white">{selectedOrderForStatus.currentStatus}</span></p>
 
                                 <div className="space-y-2 mb-6">
-                                    {['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
+                                    {['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURN_ACCEPTED', 'RETURN_PICKED_UP', 'REFUND_COMPLETED'].map((status) => (
                                         <button
                                             key={status}
                                             onClick={() => handleUpdateOrderStatus(selectedOrderForStatus.id, status)}

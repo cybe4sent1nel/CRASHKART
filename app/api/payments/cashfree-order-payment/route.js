@@ -124,7 +124,7 @@ export async function POST(req) {
             },
             order_meta: {
                 notify_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payments/cashfree-webhook`,
-                return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/order-success/${orderId}`
+                return_url: `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')}/order-success/${orderId}`
             },
             order_note: `CrashKart Order Payment - ${isCODConversion ? 'COD Conversion' : 'Regular Payment'}`
         }

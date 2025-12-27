@@ -9,6 +9,7 @@ import ScooterAnimation from '@/components/animations/ScooterAnimation'
 import WarehouseAnimation from '@/components/animations/WarehouseAnimation'
 import SuccessAnimation from '@/components/animations/SuccessAnimation'
 import RatingModal from '@/components/RatingModal'
+import ReturnRefundModal from '@/components/ReturnRefundModal'
 import Image from 'next/image'
 import { productDummyData } from '@/assets/assets'
 import { enrichOrder } from '@/lib/productImageHelper'
@@ -18,12 +19,15 @@ import { LiveIndicator, SyncStatus } from '@/components/ConnectionStatus'
 import PaymentAnimation from '@/components/animations/PaymentAnimation'
 import MultiProductTracking from '@/components/MultiProductTracking'
 import { setupRealtimeSync, subscribeToOrderUpdates } from '@/lib/realtimeSync'
+import toast from 'react-hot-toast'
 
 export default function MyOrders() {
     const router = useRouter()
     const [orders, setOrders] = useState([])
     const [expandedOrder, setExpandedOrder] = useState(null)
     const [returnModal, setReturnModal] = useState(null)
+    const [showReturnRefundModal, setShowReturnRefundModal] = useState(false)
+    const [selectedOrderForReturn, setSelectedOrderForReturn] = useState(null)
     const [returnReason, setReturnReason] = useState('')
     const [returnedItems, setReturnedItems] = useState({})
     const [helpMessage, setHelpMessage] = useState('')
@@ -31,10 +35,21 @@ export default function MyOrders() {
     const [lastSync, setLastSync] = useState(null)
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [orderConfirmedAnimation, setOrderConfirmedAnimation] = useState(null)
+    const [returnAcceptedAnimation, setReturnAcceptedAnimation] = useState(null)
+    const [returnPickedUpAnimation, setReturnPickedUpAnimation] = useState(null)
+    const [refundCompletedAnimation, setRefundCompletedAnimation] = useState(null)
+    const [cancelledAnimation, setCancelledAnimation] = useState(null)
     const [loadingInvoice, setLoadingInvoice] = useState(null)
 
     const mapStatusToTrackingStep = (status) => {
          const statusLower = String(status).toLowerCase().replace(/ /g, '_')
+         // Return/Refund flow
+         if (statusLower.includes('refund')) return 7
+         if (statusLower.includes('return') && statusLower.includes('pick')) return 6
+         if (statusLower.includes('return') && statusLower.includes('accept')) return 5
+         // Cancelled
+         if (statusLower.includes('cancelled')) return 8
+         // Normal flow
          if (statusLower.includes('delivered')) return 4
          if (statusLower.includes('shipped') || statusLower.includes('in_transit') || statusLower.includes('transit') || statusLower.includes('shipping')) return 3
          if (statusLower.includes('processing') || statusLower.includes('confirmed')) return 2
@@ -49,6 +64,9 @@ export default function MyOrders() {
         if (statusLower.includes('processing') || statusLower.includes('confirmed')) return 'Processing'
         if (statusLower.includes('order_placed') || statusLower.includes('order') && statusLower.includes('placed')) return 'Order Placed'
         if (statusLower.includes('cancelled')) return 'Cancelled'
+        if (statusLower.includes('return') && statusLower.includes('accept')) return 'Return Accepted'
+        if (statusLower.includes('return') && statusLower.includes('pick')) return 'Return Picked Up'
+        if (statusLower.includes('refund')) return 'Refund Completed'
         return status
     }
 
@@ -87,6 +105,27 @@ export default function MyOrders() {
     const buildTrackingSteps = (status) => {
         const step = mapStatusToTrackingStep(status)
         const today = new Date().toLocaleDateString()
+        const statusLower = String(status).toLowerCase().replace(/ /g, '_')
+        
+        // Cancelled flow
+        if (statusLower.includes('cancelled')) {
+            return [
+                { label: 'Order Placed', date: today, completed: true },
+                { label: 'Cancelled', date: today, completed: true }
+            ]
+        }
+        
+        // Return/Refund flow
+        if (statusLower.includes('return') || statusLower.includes('refund')) {
+            return [
+                { label: 'Order Delivered', date: today, completed: true },
+                { label: 'Return Accepted', date: step >= 5 ? today : 'Pending', completed: step >= 5 },
+                { label: 'Return Picked Up', date: step >= 6 ? today : 'Pending', completed: step >= 6 },
+                { label: 'Refund Completed', date: step >= 7 ? today : 'Pending', completed: step >= 7 }
+            ]
+        }
+        
+        // Normal order flow
         return [
             { label: 'Order Placed', date: today, completed: true },
             { label: 'Processing', date: step >= 2 ? today : 'Pending', completed: step >= 2 },
@@ -238,16 +277,26 @@ export default function MyOrders() {
         }
     }, [])
 
-    // Load Order Confirmed Animation
+    // Load Animations
     useEffect(() => {
-        fetch('/animations/Order Confirmed.json')
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.v) {
-                    setOrderConfirmedAnimation(data)
-                }
-            })
-            .catch(err => console.warn('⚠️ Failed to load Order Confirmed animation:', err))
+        const animations = [
+            { url: '/animations/Order Confirmed.json', setter: setOrderConfirmedAnimation },
+            { url: '/animations/Order packed.json', setter: setReturnAcceptedAnimation },
+            { url: '/animations/return.json', setter: setReturnPickedUpAnimation },
+            { url: '/animations/Collecting Money.json', setter: setRefundCompletedAnimation },
+            { url: '/animations/Cancelled Parcel.json', setter: setCancelledAnimation }
+        ]
+        
+        animations.forEach(({ url, setter }) => {
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.v) {
+                        setter(data)
+                    }
+                })
+                .catch(err => console.warn(`⚠️ Failed to load animation ${url}:`, err))
+        })
     }, [])
 
     // Refresh function
@@ -425,8 +474,17 @@ export default function MyOrders() {
         }
     }
 
-    const isWithin7Days = (orderDate) => {
-        const orderDateObj = new Date(orderDate)
+    const isWithin7Days = (orderDateOrOrder) => {
+        // Handle both order object with deliveredAt or just a date
+        let orderDateObj
+        if (typeof orderDateOrOrder === 'object' && orderDateOrOrder.deliveredAt) {
+            orderDateObj = new Date(orderDateOrOrder.deliveredAt)
+        } else if (typeof orderDateOrOrder === 'object' && orderDateOrOrder.date) {
+            orderDateObj = new Date(orderDateOrOrder.date)
+        } else {
+            orderDateObj = new Date(orderDateOrOrder)
+        }
+        
         const currentDate = new Date()
         const differenceInTime = currentDate - orderDateObj
         const differenceInDays = differenceInTime / (1000 * 3600 * 24)
@@ -481,32 +539,15 @@ export default function MyOrders() {
     const handleGenerateInvoice = async (orderId) => {
         try {
             setLoadingInvoice(orderId)
-            const response = await fetch(`/api/orders/${orderId}/invoice`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            })
-
-            if (!response.ok) {
-                throw new Error('Failed to generate invoice')
-            }
-
-            // Create a blob from the response
-            const blob = await response.blob()
             
-            // Create a temporary URL and trigger download
-            const url = window.URL.createObjectURL(blob)
-            const link = document.createElement('a')
-            link.href = url
-            link.download = `Invoice-${orderId}.pdf`
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            window.URL.revokeObjectURL(url)
-
-            alert('Invoice downloaded successfully!')
+            // Open invoice in new window
+            const invoiceUrl = `/api/orders/${orderId}/invoice`
+            window.open(invoiceUrl, '_blank', 'width=800,height=900')
+            
+            toast.success('Invoice opened in new window. Use Print to save as PDF.')
         } catch (error) {
             console.error('Error generating invoice:', error)
-            alert('Failed to generate invoice. Please try again.')
+            toast.error('Failed to generate invoice. Please try again.')
         } finally {
             setLoadingInvoice(null)
         }
@@ -723,6 +764,102 @@ export default function MyOrders() {
                                             </motion.p>
                                         </div>
                                     )}
+                                    {/* Return Accepted */}
+                                    {String(order.status).toLowerCase().includes('return') && String(order.status).toLowerCase().includes('accept') && returnAcceptedAnimation && (
+                                        <div className="mb-6 flex flex-col items-center">
+                                            <Lottie
+                                                animationData={returnAcceptedAnimation}
+                                                loop={true}
+                                                style={{ width: '250px', height: '250px' }}
+                                            />
+                                            <motion.p
+                                                className="text-lg font-bold text-orange-600 mt-2"
+                                                animate={{
+                                                    scale: [1, 1.1, 1],
+                                                    opacity: [0.8, 1, 0.8]
+                                                }}
+                                                transition={{
+                                                    duration: 2,
+                                                    repeat: Infinity,
+                                                    ease: "easeInOut"
+                                                }}
+                                            >
+                                                RETURN ACCEPTED
+                                            </motion.p>
+                                        </div>
+                                    )}
+                                    {/* Return Picked Up */}
+                                    {String(order.status).toLowerCase().includes('return') && String(order.status).toLowerCase().includes('pick') && returnPickedUpAnimation && (
+                                        <div className="mb-6 flex flex-col items-center">
+                                            <Lottie
+                                                animationData={returnPickedUpAnimation}
+                                                loop={true}
+                                                style={{ width: '250px', height: '250px' }}
+                                            />
+                                            <motion.p
+                                                className="text-lg font-bold text-orange-600 mt-2"
+                                                animate={{
+                                                    scale: [1, 1.1, 1],
+                                                    opacity: [0.8, 1, 0.8]
+                                                }}
+                                                transition={{
+                                                    duration: 2,
+                                                    repeat: Infinity,
+                                                    ease: "easeInOut"
+                                                }}
+                                            >
+                                                RETURN PICKED UP
+                                            </motion.p>
+                                        </div>
+                                    )}
+                                    {/* Refund Completed */}
+                                    {String(order.status).toLowerCase().includes('refund') && refundCompletedAnimation && (
+                                        <div className="mb-6 flex flex-col items-center">
+                                            <Lottie
+                                                animationData={refundCompletedAnimation}
+                                                loop={true}
+                                                style={{ width: '250px', height: '250px' }}
+                                            />
+                                            <motion.p
+                                                className="text-lg font-bold text-green-600 mt-2"
+                                                animate={{
+                                                    scale: [1, 1.1, 1],
+                                                    opacity: [0.8, 1, 0.8]
+                                                }}
+                                                transition={{
+                                                    duration: 2,
+                                                    repeat: Infinity,
+                                                    ease: "easeInOut"
+                                                }}
+                                            >
+                                                REFUND COMPLETED
+                                            </motion.p>
+                                        </div>
+                                    )}
+                                    {/* Cancelled */}
+                                    {String(order.status).toLowerCase().includes('cancel') && cancelledAnimation && (
+                                        <div className="mb-6 flex flex-col items-center">
+                                            <Lottie
+                                                animationData={cancelledAnimation}
+                                                loop={true}
+                                                style={{ width: '250px', height: '250px' }}
+                                            />
+                                            <motion.p
+                                                className="text-lg font-bold text-red-600 mt-2"
+                                                animate={{
+                                                    scale: [1, 1.1, 1],
+                                                    opacity: [0.8, 1, 0.8]
+                                                }}
+                                                transition={{
+                                                    duration: 2,
+                                                    repeat: Infinity,
+                                                    ease: "easeInOut"
+                                                }}
+                                            >
+                                                CANCELLED
+                                            </motion.p>
+                                        </div>
+                                    )}
                                     <div className="mb-6">
                                         <h4 className="font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                             <Truck size={18} className="text-blue-500" />
@@ -855,11 +992,10 @@ export default function MyOrders() {
 
                                         {/* Action Buttons */}
                                         <div className="flex gap-3 flex-wrap">
-                                            {/* Pay Now Button for COD Orders */}
-                                            {(order.paymentMethod === 'COD' || order.paymentMethod === 'cod') && order.paymentStatus === 'PAYMENT_PENDING' && (
+                                            {/* Pay Now Online Button for Pending Payments - Prominent */}
+                                            {order.paymentStatus === 'PAYMENT_PENDING' && !order.isPaid && (
                                                 <button
                                                     onClick={() => {
-                                                        // Redirect to payment with order details
                                                         sessionStorage.setItem('codPaymentOrder', JSON.stringify({
                                                             orderId: order.id,
                                                             total: order.total,
@@ -867,12 +1003,13 @@ export default function MyOrders() {
                                                         }))
                                                         router.push(`/cod-payment/${order.id}`)
                                                     }}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition font-medium text-sm"
+                                                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white rounded-lg transition font-bold text-sm shadow-lg shadow-red-500/50"
                                                 >
-                                                    <RefreshCw size={16} />
-                                                    Pay Now
+                                                    <RefreshCw size={18} />
+                                                    Pay Now Online & Enjoy Hassle-Free Delivery
                                                 </button>
                                             )}
+                                            
                                             {/* Generate Invoice Button */}
                                             <button
                                                 onClick={() => handleGenerateInvoice(order.id)}
@@ -890,18 +1027,21 @@ export default function MyOrders() {
                                                 <Share2 size={16} />
                                                 Share Tracking
                                             </button>
-                                            {order.status === 'Delivered' && isWithin7Days(order.date) && (
+                                            {order.status === 'Delivered' && isWithin7Days(order) && (
                                                 <>
                                                     <button
-                                                        onClick={() => setReturnModal({ orderId: order.id, itemId: order.items[0].name, type: 'return' })}
+                                                        onClick={() => {
+                                                            setSelectedOrderForReturn(order)
+                                                            setShowReturnRefundModal(true)
+                                                        }}
                                                         className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg transition font-medium text-sm"
                                                     >
                                                         <RotateCcw size={16} />
-                                                        Return/Exchange
+                                                        Return/Replace
                                                     </button>
                                                 </>
                                             )}
-                                            {order.status === 'Delivered' && !isWithin7Days(order.date) && (
+                                            {order.status === 'Delivered' && !isWithin7Days(order) && (
                                                 <p className="text-xs text-slate-500 px-2 py-1">Return period expired (7 days)</p>
                                             )}
                                             {order.status !== 'Delivered' && (
@@ -1009,6 +1149,29 @@ export default function MyOrders() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* New ReturnRefundModal */}
+            {showReturnRefundModal && selectedOrderForReturn && (
+                <ReturnRefundModal
+                    isOpen={showReturnRefundModal}
+                    onClose={() => {
+                        setShowReturnRefundModal(false)
+                        setSelectedOrderForReturn(null)
+                    }}
+                    orderId={selectedOrderForReturn.id}
+                    onSuccess={() => {
+                        setShowReturnRefundModal(false)
+                        setSelectedOrderForReturn(null)
+                        toast.success('Return request submitted successfully! Check your email for confirmation.')
+                        // Refresh orders to show updated status
+                        const userData = localStorage.getItem('user')
+                        if (userData) {
+                            const user = JSON.parse(userData)
+                            loadOrders(user.email)
+                        }
+                    }}
+                />
+            )}
         </motion.div>
     )
 }
