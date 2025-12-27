@@ -6,29 +6,16 @@ import { sendOrderPlacedEmail } from '@/lib/emailService'
 
 const prisma = new PrismaClient()
 
-// GET handler for Cashfree webhook testing
-export async function GET(req) {
-    return Response.json({ 
-        status: 'ok', 
-        message: 'Cashfree webhook endpoint is active',
-        timestamp: new Date().toISOString()
-    })
-}
-
 export async function POST(req) {
     try {
         const body = await req.json()
-        
-        console.log('🔔 Webhook received:', JSON.stringify(body, null, 2))
         
         // Get signature from headers
         const signature = req.headers.get('x-webhook-signature')
         const cashfreeSecretKey = process.env.CASHFREE_SECRET_KEY
 
         if (!signature || !cashfreeSecretKey) {
-            console.warn('⚠️ Webhook signature missing or secret not configured')
-            console.warn('  Signature present:', !!signature)
-            console.warn('  Secret configured:', !!cashfreeSecretKey)
+            console.warn('Webhook signature missing or secret not configured')
             return Response.json(
                 { message: 'Unauthorized' },
                 { status: 401 }
@@ -101,90 +88,6 @@ export async function POST(req) {
                 })
                 
                 console.log('  ✅ Order updated - isPaid:', updatedOrder.isPaid)
-
-                // Calculate and add CrashCash reward to user's account
-                try {
-                    console.log('  💰 Processing CrashCash reward...')
-                    
-                    // Get product details to determine min/max CrashCash values
-                    const orderItems = await prisma.orderItem.findMany({
-                        where: { orderId: order.id },
-                        include: {
-                            product: true
-                        }
-                    })
-                    
-                    let totalCrashCashReward = 0
-                    const rewardDetails = []
-                    
-                    // Calculate reward for each product
-                    for (const item of orderItems) {
-                        if (item.product) {
-                            const min = item.product.crashCashMin || 10
-                            const max = item.product.crashCashMax || 240
-                            // Generate random reward between min and max
-                            const reward = Math.floor(Math.random() * (max - min + 1)) + min
-                            totalCrashCashReward += reward * item.quantity
-                            
-                            rewardDetails.push({
-                                productName: item.name,
-                                quantity: item.quantity,
-                                rewardPerItem: reward,
-                                totalReward: reward * item.quantity
-                            })
-                            
-                            console.log(`    - ${item.name}: ₹${reward} x ${item.quantity} = ₹${reward * item.quantity}`)
-                        }
-                    }
-                    
-                    if (totalCrashCashReward > 0) {
-                        // Update user's CrashCash balance
-                        const updatedUser = await prisma.user.update({
-                            where: { id: order.userId },
-                            data: {
-                                crashCashBalance: {
-                                    increment: totalCrashCashReward
-                                }
-                            }
-                        })
-                        
-                        // Create reward records for each product (for rewards page display)
-                        for (const detail of rewardDetails) {
-                            await prisma.crashCashReward.create({
-                                data: {
-                                    userId: order.userId,
-                                    orderId: order.id,
-                                    amount: detail.totalReward,
-                                    source: 'order_placed',
-                                    productName: detail.productName,
-                                    productImage: orderItems.find(i => i.name === detail.productName)?.image || null,
-                                    status: 'active',
-                                    earnedAt: new Date()
-                                }
-                            })
-                        }
-                        
-                        // Update order notes with reward details
-                        await prisma.order.update({
-                            where: { id: order.id },
-                            data: {
-                                notes: JSON.stringify({
-                                    ...JSON.parse(updatedOrder.notes || '{}'),
-                                    crashCashReward: totalCrashCashReward,
-                                    crashCashRewardDetails: rewardDetails,
-                                    crashCashAddedAt: new Date().toISOString()
-                                })
-                            }
-                        })
-                        
-                        console.log(`  ✅ CrashCash reward added: ₹${totalCrashCashReward}`)
-                        console.log(`  💳 User's new balance: ₹${updatedUser.crashCashBalance}`)
-                    }
-                } catch (crashCashError) {
-                    console.error('  ❌ Failed to add CrashCash reward:', crashCashError.message)
-                    console.error('  CrashCash error stack:', crashCashError.stack)
-                    // Don't fail the webhook if CrashCash fails
-                }
 
                 // Send order placed email with beautiful template
                 try {
