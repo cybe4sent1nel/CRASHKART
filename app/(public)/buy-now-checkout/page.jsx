@@ -27,6 +27,9 @@ export default function BuyNowCheckout() {
     const [mobileError, setMobileError] = useState('')
     const [isEditingPhone, setIsEditingPhone] = useState(false)
     const [phoneFromProfile, setPhoneFromProfile] = useState(null)
+    const [crashCashBalance, setCrashCashBalance] = useState(0)
+    const [crashCashToUse, setCrashCashToUse] = useState(0)
+    const [appliedCrashCash, setAppliedCrashCash] = useState(0)
 
     // Load Buy Now product data
     useEffect(() => {
@@ -123,7 +126,7 @@ export default function BuyNowCheckout() {
        }
     }, [addresses, selectedAddressId])
 
-    // Load phone number from user profile
+    // Load phone number from user profile and CrashCash balance
     useEffect(() => {
        const userData = localStorage.getItem('user')
        if (userData) {
@@ -136,11 +139,40 @@ export default function BuyNowCheckout() {
                        setMobileNumber(user.phone)
                    }
                }
+               // Set CrashCash balance
+               if (user.crashCashBalance !== undefined) {
+                   setCrashCashBalance(user.crashCashBalance || 0)
+               }
+               // Fetch latest CrashCash balance from API
+               fetchCrashCashBalance(user.email)
            } catch (err) {
                console.error('Error loading user profile:', err)
            }
        }
     }, [])
+
+    const fetchCrashCashBalance = async (email) => {
+        try {
+            const token = localStorage.getItem('token')
+            const response = await fetch(`/api/user/profile?email=${email}`, {
+                headers: {
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            })
+            if (response.ok) {
+                const userData = await response.json()
+                if (userData.crashCashBalance !== undefined) {
+                    setCrashCashBalance(userData.crashCashBalance || 0)
+                    // Update localStorage
+                    const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
+                    currentUser.crashCashBalance = userData.crashCashBalance
+                    localStorage.setItem('user', JSON.stringify(currentUser))
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching CrashCash balance:', error)
+        }
+    }
 
     const selectedAddress = addresses?.find(a => a.id === selectedAddressId)
 
@@ -180,7 +212,38 @@ export default function BuyNowCheckout() {
         if (appliedCoupon) {
             total -= appliedCoupon.discount
         }
+        if (appliedCrashCash > 0) {
+            total -= appliedCrashCash
+        }
         return Math.max(0, total)
+    }
+
+    const handleApplyCrashCash = () => {
+        const amount = Number(crashCashToUse)
+        if (isNaN(amount) || amount <= 0) {
+            toast.error('Please enter a valid amount')
+            return
+        }
+        if (amount > crashCashBalance) {
+            toast.error(`You only have ₹${crashCashBalance} CrashCash available`)
+            return
+        }
+        // Calculate remaining amount after coupon discount
+        let remainingTotal = totalPrice
+        if (appliedCoupon) {
+            remainingTotal -= appliedCoupon.discount
+        }
+        if (amount > remainingTotal) {
+            toast.error(`Maximum ₹${remainingTotal} can be applied to this order`)
+            return
+        }
+        setAppliedCrashCash(amount)
+        toast.success(`₹${amount} CrashCash applied successfully!`)
+    }
+
+    const handleRemoveCrashCash = () => {
+        setAppliedCrashCash(0)
+        setCrashCashToUse(0)
     }
 
     const handleProceedToPayment = async () => {
@@ -376,6 +439,78 @@ export default function BuyNowCheckout() {
                                     <button
                                         onClick={handleRemoveCoupon}
                                         className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* CrashCash Section */}
+                        <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-900/30 dark:via-amber-900/30 dark:to-yellow-900/30 rounded-3xl shadow-lg p-8 border-2 border-orange-200 dark:border-orange-700">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold text-orange-800 dark:text-orange-300 flex items-center gap-2">
+                                    💰 Use CrashCash
+                                </h2>
+                                <div className="bg-white dark:bg-slate-800 px-4 py-2 rounded-full shadow-sm">
+                                    <p className="text-sm text-slate-600 dark:text-slate-400">Available Balance</p>
+                                    <p className="text-xl font-bold text-orange-600 dark:text-orange-400">₹{crashCashBalance.toFixed(2)}</p>
+                                </div>
+                            </div>
+
+                            {!appliedCrashCash ? (
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            value={crashCashToUse}
+                                            onChange={(e) => setCrashCashToUse(e.target.value)}
+                                            placeholder="Enter amount to use"
+                                            className="flex-1 px-4 py-3 border-2 border-orange-300 dark:border-orange-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-orange-600"
+                                        />
+                                        <button
+                                            onClick={handleApplyCrashCash}
+                                            className="px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white font-bold rounded-lg hover:from-orange-700 hover:to-amber-700 transition"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+
+                                    {/* Quick Apply Buttons */}
+                                    {crashCashBalance >= 50 && (
+                                        <div className="flex gap-2">
+                                            <p className="text-sm text-slate-600 dark:text-slate-400 mr-2">Quick Apply:</p>
+                                            {[50, 100, 200].map((amount) => (
+                                                crashCashBalance >= amount && (
+                                                    <button
+                                                        key={amount}
+                                                        onClick={() => {
+                                                            setCrashCashToUse(amount.toString())
+                                                            handleApplyCrashCash(amount)
+                                                        }}
+                                                        className="px-4 py-2 bg-white dark:bg-slate-700 border-2 border-orange-400 dark:border-orange-600 text-orange-600 dark:text-orange-400 font-semibold rounded-lg hover:bg-orange-50 dark:hover:bg-slate-600 transition"
+                                                    >
+                                                        ₹{amount}
+                                                    </button>
+                                                )
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                                        <Info size={14} />
+                                        CrashCash can be used up to the order total
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between bg-orange-100 dark:bg-orange-900/50 p-4 rounded-lg border-2 border-orange-300 dark:border-orange-600">
+                                    <div>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400">CrashCash Applied</p>
+                                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">₹{appliedCrashCash.toFixed(2)}</p>
+                                    </div>
+                                    <button
+                                        onClick={handleRemoveCrashCash}
+                                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
                                     >
                                         Remove
                                     </button>

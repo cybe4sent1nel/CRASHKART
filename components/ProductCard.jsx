@@ -7,6 +7,10 @@ import { useDispatch, useSelector } from 'react-redux'
 import { addToWishlist, removeFromWishlist } from '@/lib/features/wishlist/wishlistSlice'
 import ProductQuickView from './ProductQuickView'
 import OutOfStockDisplay from './OutOfStockDisplay'
+import LottieAnimation from './LottieAnimation'
+import wishlistAnimData from '@/public/animations/Wishlist Animation.json'
+import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
 
 const ProductCard = ({ product }) => {
 
@@ -17,6 +21,7 @@ const ProductCard = ({ product }) => {
     )
     const isInWishlist = wishlistItems.some(item => item.id === product.id)
     const [quickViewOpen, setQuickViewOpen] = useState(false)
+    const [showWishlistAnim, setShowWishlistAnim] = useState(false)
 
     // calculate the average rating of the product
      const rating = product.rating && product.rating.length > 0 
@@ -30,13 +35,49 @@ const ProductCard = ({ product }) => {
 
         if (isInWishlist) {
             dispatch(removeFromWishlist(product.id))
+            toast.success('Removed from wishlist')
         } else {
             dispatch(addToWishlist(product))
+            setShowWishlistAnim(true)
+            toast.success('Added to wishlist!')
+            // Hide animation after 2 seconds
+            setTimeout(() => {
+                setShowWishlistAnim(false)
+            }, 2000)
         }
     }
 
     return (
         <>
+            {/* Wishlist Animation Overlay */}
+            <AnimatePresence>
+                {showWishlistAnim && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                        onClick={() => setShowWishlistAnim(false)}
+                    >
+                        <motion.div
+                            initial={{ y: -50 }}
+                            animate={{ y: 0 }}
+                            className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm"
+                        >
+                            <LottieAnimation
+                                animationData={wishlistAnimData}
+                                width={200}
+                                height={200}
+                                loop={false}
+                            />
+                            <p className="text-center text-xl font-bold text-slate-800 dark:text-white mt-4">
+                                Added to Wishlist! ❤️
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            
             <Link href={`/product/${product.id}`} className='group max-xl:mx-auto relative'>
                 <div className='bg-[#F5F5F5] h-40 sm:w-60 sm:h-68 rounded-lg flex items-center justify-center relative overflow-hidden'>
                     {/* Show animation when out of stock */}

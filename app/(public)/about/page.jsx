@@ -1,13 +1,25 @@
 'use client'
 import Link from 'next/link'
 import { Mail, Phone, MapPin, Heart, Zap, Shield, Linkedin, Github } from 'lucide-react'
+import LottieAnimation from '@/components/LottieAnimation'
+import teamAnimData from '@/public/About Us Team.json'
 
 export default function AboutPage() {
     return (
         <div className="min-h-screen bg-white dark:bg-slate-900 transition">
-            {/* Hero Section */}
+            {/* Hero Section with Animation */}
             <section className="max-w-6xl mx-auto px-6 py-20">
-                <div className="text-center mb-16">
+                {/* Animated Team Background */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 dark:opacity-5">
+                    <LottieAnimation 
+                        animationData={teamAnimData}
+                        loop={true}
+                        autoplay={true}
+                        style={{ width: '100%', height: '100%', maxWidth: '1200px' }}
+                    />
+                </div>
+
+                <div className="text-center mb-16 relative z-10">
                     <div className="flex items-center justify-center gap-3 mb-6">
                         <img src="/logo.bmp" alt="CrashKart" className="w-16 h-16" />
                         <h1 className="text-5xl font-bold">

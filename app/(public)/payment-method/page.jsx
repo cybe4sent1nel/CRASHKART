@@ -214,8 +214,22 @@ export default function PaymentMethod() {
                                 </div>
                                 {checkoutData.discount > 0 && (
                                     <div className="flex justify-between text-green-600">
-                                        <span>Discount:</span>
+                                        <span>💰 Coupon Discount:</span>
                                         <span>-{currency}{checkoutData.discount.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {checkoutData.crashCashApplied > 0 && (
+                                    <div className="flex justify-between text-yellow-600">
+                                        <span>🎁 CrashCash Applied:</span>
+                                        <span>-{currency}{checkoutData.crashCashApplied.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {checkoutData.appliedCoupon && (
+                                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 mt-2">
+                                        <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                                            <Tag className="w-4 h-4" />
+                                            <span>Coupon: <strong>{checkoutData.appliedCoupon.code}</strong></span>
+                                        </div>
                                     </div>
                                 )}
                                 <div className="flex justify-between font-bold text-lg mt-2">

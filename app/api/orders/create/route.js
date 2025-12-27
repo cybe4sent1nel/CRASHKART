@@ -140,8 +140,49 @@ export async function POST(req) {
             console.log('Cart clear skipped:', err.message)
         }
 
-        // Calculate CrashCash reward (10% of order total)
-        const crashCashReward = Math.floor(total * 0.1)
+        // Calculate CrashCash reward (10% of order total OR product-specific CrashCash value)
+        let totalCrashCashEarned = 0
+        
+        // Check if items have specific crashCashValue
+        for (const item of items) {
+            if (item.crashCashValue && item.crashCashValue > 0) {
+                // Product-specific CrashCash
+                totalCrashCashEarned += item.crashCashValue * item.quantity
+            }
+        }
+        
+        // If no product-specific CrashCash, use 10% of order total
+        if (totalCrashCashEarned === 0) {
+            totalCrashCashEarned = Math.floor(total * 0.1)
+        }
+        
+        // Add CrashCash to user's balance immediately (regardless of scratch card win/loss)
+        try {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    crashCashBalance: {
+                        increment: totalCrashCashEarned
+                    }
+                }
+            })
+            
+            // Create CrashCash transaction record
+            await prisma.crashCashTransaction.create({
+                data: {
+                    userId: user.id,
+                    orderId: order.id,
+                    amount: totalCrashCashEarned,
+                    type: 'EARNED',
+                    description: `Earned from order #${order.id.substring(0, 8)}`
+                }
+            })
+            
+            console.log(`✅ Added ₹${totalCrashCashEarned} CrashCash to user ${user.email}`)
+        } catch (cashError) {
+            console.error('❌ Failed to add CrashCash:', cashError)
+            // Don't fail the order if CrashCash update fails
+        }
 
         // Fetch the complete order with relations for email
         const completeOrder = await prisma.order.findUnique({
