@@ -33,6 +33,11 @@ const ProductCard = ({ product }) => {
         e.preventDefault()
         e.stopPropagation()
 
+        // Prevent navigation loader from triggering
+        if (typeof window !== 'undefined') {
+            window.__disableNavigationLoader = true
+        }
+
         if (isInWishlist) {
             dispatch(removeFromWishlist(product.id))
             toast.success('Removed from wishlist')
@@ -45,6 +50,13 @@ const ProductCard = ({ product }) => {
                 setShowWishlistAnim(false)
             }, 2000)
         }
+
+        // Re-enable navigation loader after a short delay
+        setTimeout(() => {
+            if (typeof window !== 'undefined') {
+                window.__disableNavigationLoader = false
+            }
+        }, 100)
     }
 
     return (
@@ -56,19 +68,21 @@ const ProductCard = ({ product }) => {
                         initial={{ opacity: 0, scale: 0.5 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.5 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
                         onClick={() => setShowWishlistAnim(false)}
                     >
                         <motion.div
                             initial={{ y: -50 }}
                             animate={{ y: 0 }}
                             className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm"
+                            onClick={(e) => e.stopPropagation()}
                         >
                             <LottieAnimation
                                 animationData={wishlistAnimData}
                                 width={200}
                                 height={200}
                                 loop={false}
+                                autoplay={true}
                             />
                             <p className="text-center text-xl font-bold text-slate-800 dark:text-white mt-4">
                                 Added to Wishlist! ❤️
@@ -102,6 +116,7 @@ const ProductCard = ({ product }) => {
 
                     <button
                         onClick={toggleWishlist}
+                        data-no-loader="true"
                         className='absolute top-2 right-2 bg-white hover:bg-red-50 p-2 rounded-full transition opacity-0 group-hover:opacity-100 shadow-lg'
                     >
                         <Heart
