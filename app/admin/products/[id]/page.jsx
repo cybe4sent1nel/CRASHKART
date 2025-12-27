@@ -38,8 +38,9 @@ export default function EditProductPage() {
             
             // Try API first
             const response = await fetch(`/api/products/${productId}`)
-            if (response.ok) {
-                const data = await response.json()
+            const data = await response.json()
+            
+            if (response.ok && data.success && data.product) {
                 const prod = data.product
                 setProduct(prod)
                 setFormData({
@@ -59,33 +60,71 @@ export default function EditProductPage() {
                         }
                     })
                 }
-            } else {
-                // Fallback to localStorage
-                const adminProducts = localStorage.getItem('adminProducts')
-                if (adminProducts) {
-                    const products = JSON.parse(adminProducts)
-                    const prod = products.find(p => p.id === productId)
-                    if (prod) {
-                        setProduct(prod)
-                        setFormData({
-                            name: prod.name,
-                            description: prod.description,
-                            price: prod.price,
-                            mrp: prod.mrp,
-                            category: prod.category,
-                            inStock: prod.inStock,
-                            quantity: prod.quantity || 0,
+                console.log('Product loaded successfully from API:', prod.name)
+                return // Exit after successful load
+            }
+            
+            // If API fails, try inventory API
+            console.log('Trying inventory API...')
+            const invResponse = await fetch(`/api/admin/inventory/${productId}`)
+            if (invResponse.ok) {
+                const prod = await invResponse.json()
+                if (prod && prod.id) {
+                    setProduct(prod)
+                    setFormData({
+                        name: prod.name || '',
+                        description: prod.description || '',
+                        price: prod.price || 0,
+                        mrp: prod.mrp || 0,
+                        category: prod.category || '',
+                        inStock: prod.inStock !== false,
+                        quantity: prod.quantity || 0,
+                    })
+                    // Load product images
+                    if (prod.images && Array.isArray(prod.images)) {
+                        prod.images.forEach((img, idx) => {
+                            if (idx < 4) {
+                                setImagePreviewUrls(prev => ({ ...prev, [idx + 1]: img }))
+                            }
                         })
-                        if (prod.images) {
-                            prod.images.forEach((img, idx) => {
-                                if (idx < 4) {
-                                    setImagePreviewUrls(prev => ({ ...prev, [idx + 1]: img }))
-                                }
-                            })
-                        }
                     }
+                    console.log('Product loaded successfully from inventory API:', prod.name)
+                    return // Exit after successful load
                 }
             }
+            
+            // Fallback to localStorage
+            console.log('Trying localStorage...')
+            const adminProducts = localStorage.getItem('adminProducts')
+            if (adminProducts) {
+                const products = JSON.parse(adminProducts)
+                const prod = products.find(p => p.id === productId)
+                if (prod) {
+                    setProduct(prod)
+                    setFormData({
+                        name: prod.name,
+                        description: prod.description,
+                        price: prod.price,
+                        mrp: prod.mrp,
+                        category: prod.category,
+                        inStock: prod.inStock,
+                        quantity: prod.quantity || 0,
+                    })
+                    if (prod.images) {
+                        prod.images.forEach((img, idx) => {
+                            if (idx < 4) {
+                                setImagePreviewUrls(prev => ({ ...prev, [idx + 1]: img }))
+                            }
+                        })
+                    }
+                    console.log('Product loaded successfully from localStorage:', prod.name)
+                    return // Exit after successful load
+                }
+            }
+            
+            // If we get here, product was not found anywhere
+            console.error('Product not found in any source:', productId)
+            toast.error('Product not found')
         } catch (error) {
             console.error('Error fetching product:', error)
             toast.error('Failed to load product')
