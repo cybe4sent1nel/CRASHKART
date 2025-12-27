@@ -30,7 +30,14 @@ export async function PUT(req, { params }) {
 
         const orderId = params.orderId
         const body = await req.json()
-        const { isPaid, paymentMethod } = body
+        const { isPaid, paymentMethod, status } = body
+
+        console.log(`🔄 Updating payment status for order ${orderId}:`, {
+            isPaid,
+            paymentMethod,
+            status,
+            triggeredBy: 'order-success-page'
+        })
 
         // Get user
         const user = await prisma.user.findUnique({
@@ -64,17 +71,25 @@ export async function PUT(req, { params }) {
         }
 
         // Update order payment status
+        const updateData = {
+            isPaid: isPaid === true,
+            paymentMethod: paymentMethod || order.paymentMethod,
+            notes: JSON.stringify({
+                ...JSON.parse(order.notes || '{}'),
+                paymentStatusUpdatedAt: new Date().toISOString(),
+                paymentStatusUpdatedBy: 'order-success-page',
+                previousStatus: order.status
+            })
+        }
+
+        // Update status if provided
+        if (status) {
+            updateData.status = status
+        }
+
         const updatedOrder = await prisma.order.update({
             where: { id: orderId },
-            data: {
-                isPaid: isPaid === true,
-                paymentMethod: paymentMethod || order.paymentMethod,
-                notes: JSON.stringify({
-                    ...JSON.parse(order.notes || '{}'),
-                    paymentStatusUpdatedAt: new Date().toISOString(),
-                    paymentStatusUpdatedBy: 'manual'
-                })
-            },
+            data: updateData,
             include: {
                 orderItems: true,
                 address: true
@@ -83,7 +98,9 @@ export async function PUT(req, { params }) {
 
         console.log(`✅ Payment status updated for order ${orderId}:`, {
             isPaid: updatedOrder.isPaid,
-            paymentMethod: updatedOrder.paymentMethod
+            paymentMethod: updatedOrder.paymentMethod,
+            status: updatedOrder.status,
+            previousStatus: order.status
         })
 
         return Response.json({

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { triggerOrderConfirmationEmail } from '@/lib/emailTriggerService'
 import { sendOrderPlacedEmail } from '@/lib/emailService'
+import { sendOrderConfirmationWithInvoice } from '@/lib/email'
+import { getInvoiceAttachment } from '@/lib/invoiceGenerator'
 
 const prisma = new PrismaClient()
 
@@ -155,14 +157,56 @@ export async function POST(req) {
             }
         })
 
-        // Send beautiful order placed email
+        // Send beautiful order placed email with invoice
         try {
-            await sendOrderPlacedEmail({
-                order: completeOrder,
+            // Prepare invoice data
+            const invoiceData = {
+                orderId: completeOrder.id,
+                customerName: user.name || user.email.split('@')[0],
                 customerEmail: user.email,
-                customerName: user.name || user.email.split('@')[0]
-            })
-            console.log('✅ Order placed email sent successfully')
+                customerPhone: user.phone || address.phone || 'N/A',
+                items: completeOrder.orderItems.map(item => ({
+                    name: item.product?.name || 'Product',
+                    quantity: item.quantity,
+                    price: item.price,
+                    product: item.product,
+                    images: item.product?.images || []
+                })),
+                subtotal: subtotal,
+                discount: discount || 0,
+                crashCashApplied: 0,
+                total: total,
+                address: address,
+                paymentMethod: paymentMethodEnum,
+                isPaid: isPaidInitially,
+                orderDate: completeOrder.createdAt
+            }
+
+            // Generate invoice attachment
+            const invoiceAttachment = await getInvoiceAttachment(invoiceData)
+
+            // Send order confirmation email with invoice
+            await sendOrderConfirmationWithInvoice(
+                user.email,
+                {
+                    orderId: completeOrder.id,
+                    items: completeOrder.orderItems.map(item => ({
+                        name: item.product?.name || 'Product',
+                        quantity: item.quantity,
+                        price: item.price,
+                        images: item.product?.images || []
+                    })),
+                    subtotal: subtotal,
+                    discount: discount || 0,
+                    total: total,
+                    paymentMethod: paymentMethodEnum,
+                    isPaid: isPaidInitially,
+                    address: address
+                },
+                invoiceAttachment,
+                user.name || user.email.split('@')[0]
+            )
+            console.log('✅ Order placed email with invoice sent successfully')
         } catch (emailError) {
             console.error('❌ Failed to send order placed email:', emailError)
             // Don't fail the order if email fails

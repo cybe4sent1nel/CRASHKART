@@ -49,28 +49,49 @@ export default function OrderSuccess() {
                      const data = await response.json()
                      setOrder(data.order)
                      
-                     // Automatically mark order as paid if reaching success page with Cashfree payment
-                     // This page only loads after successful payment/COD selection
-                     if (data.order && !data.order.isPaid) {
-                         console.log('🔄 Marking order as paid - user reached success page')
-                         try {
-                             const updateResponse = await fetch(`/api/orders/${orderId}/payment-status`, {
-                                 method: 'PUT',
-                                 headers,
-                                 body: JSON.stringify({
-                                     isPaid: true,
-                                     status: data.order.paymentMethod === 'COD' ? 'ORDER_PLACED' : 'PAID'
-                                 })
-                             })
+                     // Automatically mark order as paid/confirmed when user reaches success page
+                     // This replaces webhook dependency - if user sees this page, payment flow completed
+                     // For Cashfree: User was redirected here after successful payment
+                     // For COD: User selected COD and order was confirmed
+                     if (data.order) {
+                         const isCOD = data.order.paymentMethod === 'COD' || data.order.paymentMethod === 'cod'
+                         
+                         // For COD: Don't change anything, order is already correctly set up
+                         // For Cashfree: Only update if payment isn't already marked as paid
+                         const needsUpdate = !isCOD && (!data.order.isPaid || data.order.status === 'PAYMENT_PENDING')
+                         
+                         if (needsUpdate) {
+                             console.log('🔄 Updating Cashfree payment status - user reached success page after payment')
+                             console.log(`   Payment Method: ${data.order.paymentMethod}`)
+                             console.log(`   Current Status: ${data.order.status}`)
+                             console.log(`   Current isPaid: ${data.order.isPaid}`)
                              
-                             if (updateResponse.ok) {
-                                 console.log('✅ Order payment status updated successfully')
-                                 // Refresh order data
-                                 const updatedData = await updateResponse.json()
-                                 setOrder(updatedData.order)
+                             try {
+                                 const updateResponse = await fetch(`/api/orders/${orderId}/payment-status`, {
+                                     method: 'PUT',
+                                     headers,
+                                     body: JSON.stringify({
+                                         isPaid: true, // Mark as paid for Cashfree
+                                         status: 'ORDER_PLACED' // Confirmed order status
+                                     })
+                                 })
+                                 
+                                 if (updateResponse.ok) {
+                                     console.log('✅ Cashfree payment confirmed - Order marked as PAID')
+                                     // Refresh order data
+                                     const updatedData = await updateResponse.json()
+                                     setOrder(updatedData.order)
+                                 } else {
+                                     console.warn('⚠️ Failed to update payment status:', updateResponse.status)
+                                 }
+                             } catch (updateError) {
+                                 console.error('❌ Failed to update payment status:', updateError)
                              }
-                         } catch (updateError) {
-                             console.error('Failed to update payment status:', updateError)
+                         } else if (isCOD) {
+                             console.log('✅ COD order confirmed - No payment status update needed')
+                             console.log('   Order will be paid on delivery')
+                         } else {
+                             console.log('✅ Order already processed and marked as paid')
                          }
                      }
                  } else {
