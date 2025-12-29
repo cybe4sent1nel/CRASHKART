@@ -1,0 +1,770 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "mongodb"
+    url      = env("DATABASE_URL")
+}
+
+// Required for creating a User: id, name, email, image, cart (optional JSON string)
+model User {
+    id               String    @id @default(auto()) @map("_id") @db.ObjectId
+    name             String?
+    email            String?   @unique
+    phone            String?   @unique
+    password         String?
+    image            String?
+    cart             Json      @default("{}")
+    crashCashBalance Float     @default(0) // CrashCash wallet balance
+    isProfileSetup   Boolean   @default(false)
+    isEmailVerified  Boolean   @default(false)
+    isPhoneVerified  Boolean   @default(false)
+    loginMethod      String    @default("email") // email, phone, google, password
+    googleId         String?   @unique
+    createdAt        DateTime  @default(now())
+    updatedAt        DateTime  @updatedAt
+
+    // Relations
+    ratings       Rating[]
+    Address       Address[]
+    store         Store?
+    buyerOrders   Order[]        @relation("BuyerRelation")
+    otpSessions   OTPSession[]
+    notifications Notification[]
+}
+
+// Required for creating a Product: name, description, mrp, price, images, category, storeId
+model Product {
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    name           String
+    description    String
+    mrp            Float
+    price          Float
+    images         String[]
+    category       String
+    inStock        Boolean  @default(true)
+    quantity       Int      @default(0) // Stock quantity (0 = out of stock)
+    storeId        String   @db.ObjectId
+    crashCashMin   Int      @default(10)
+    crashCashMax   Int      @default(240)
+    crashCashValue Int      @default(0)
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    // Relations
+    store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+    orderItems     OrderItem[]
+    rating         Rating[]
+    recentlyViewed RecentlyViewed[]
+    outOfStockNotifications OutOfStockNotification[]
+}
+
+enum OrderStatus {
+    ORDER_PLACED
+    PROCESSING
+    SHIPPED
+    DELIVERED
+    PAYMENT_PENDING
+    CANCELLED
+    RETURN_ACCEPTED
+    RETURN_PICKED_UP
+    REFUND_COMPLETED
+}
+
+enum PaymentMethod {
+    COD
+    STRIPE
+    CASHFREE
+}
+
+// Required for creating an Order: total, userId, storeId, addressId, isPaid, paymentMethod, isCouponUsed, coupon (JSON), orderItems (nested)
+model Order {
+    id            String        @id @default(auto()) @map("_id") @db.ObjectId
+    total         Float
+    status        OrderStatus   @default(ORDER_PLACED)
+    userId        String        @db.ObjectId
+    storeId       String        @db.ObjectId
+    addressId     String        @db.ObjectId
+    isPaid        Boolean       @default(false)
+    paymentMethod PaymentMethod
+    createdAt     DateTime      @default(now())
+    updatedAt     DateTime      @updatedAt
+    isCouponUsed  Boolean       @default(false)
+    coupon        Json          @default("{}")
+    notes         Json?         // Store Cashfree order ID, payment session ID, etc
+    orderItems    OrderItem[]
+    
+    // Cancellation & Return fields
+    canCancel     Boolean       @default(true) // Can be cancelled only before shipped
+    cancelReason  String?       // Reason for cancellation
+    canceledAt    DateTime?     // When order was cancelled
+    returnRequest ReturnRequest?
+    complaint     Complaint?
+
+    // Relations
+    user    User    @relation("BuyerRelation", fields: [userId], references: [id])
+    store   Store   @relation(fields: [storeId], references: [id])
+    address Address @relation(fields: [addressId], references: [id])
+}
+
+// Required for creating an OrderItem: orderId, productId, quantity, price
+model OrderItem {
+    id              String        @id @default(auto()) @map("_id") @db.ObjectId
+    orderId         String        @db.ObjectId
+    productId       String        @db.ObjectId
+    quantity        Int
+    price           Float
+    shipmentId      String?       // Generated only for multi-product orders. Single product orders use orderId
+    status          OrderStatus   @default(ORDER_PLACED) // Individual product/shipment status
+    trackingNumber  String?       // Tracking number for this shipment
+    estimatedDelivery DateTime?   // Estimated delivery for this shipment
+    deliveredAt     DateTime?     // When this item was delivered
+    createdAt       DateTime      @default(now())
+    updatedAt       DateTime      @updatedAt
+
+    // Relations
+    order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    product Product @relation(fields: [productId], references: [id])
+    
+    @@index([orderId])
+    @@index([shipmentId])
+}
+
+// Required for creating a Rating: rating, review, userId, productId
+model Rating {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    rating    Int
+    review    String
+    userId    String   @db.ObjectId
+    productId String   @db.ObjectId
+    orderId   String   @db.ObjectId
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations
+    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, productId, orderId])
+}
+
+// Required for creating an Address: userId, name, email, street, city, state, zip, country, phone
+model Address {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String   @db.ObjectId
+    name      String
+    email     String
+    street    String
+    city      String
+    state     String
+    zip       String
+    country   String
+    phone     String
+    isDefault Boolean  @default(false)
+    latitude  Float?
+    longitude Float?
+    createdAt DateTime @default(now())
+
+    // Relations
+    Order Order[]
+    user  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([isDefault])
+}
+
+// Required for creating a Coupon: code, description, discount, forNewUser, isPublic, expiresAt
+model Coupon {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    code        String   @unique
+    description String
+    discount    Float
+    forNewUser  Boolean
+    forMember   Boolean  @default(false)
+    isPublic    Boolean
+    expiresAt   DateTime
+    createdAt   DateTime @default(now())
+}
+
+// Required for creating a Store: userId, name, username, email, contact, logo, description, address (optional: , status, isActive)
+model Store {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId      String   @unique @db.ObjectId
+    name        String
+    description String
+    username    String   @unique
+    address     String
+    status      String   @default("pending")
+    isActive    Boolean  @default(false)
+    logo        String
+    email       String
+    contact     String
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    Product Product[]
+    Order   Order[]
+    user    User      @relation(fields: [userId], references: [id])
+}
+
+// OTP Sessions for authentication
+model OTPSession {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String   @db.ObjectId
+    otp       String
+    method    String   // "email" or "whatsapp"
+    contact   String   // email or phone
+    isUsed    Boolean  @default(false)
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([expiresAt])
+}
+
+// Notifications for users
+model Notification {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String   @db.ObjectId
+    title     String
+    message   String
+    type      String   @default("info") // info, success, warning, error
+    link      String?
+    isRead    Boolean  @default(false)
+    createdAt DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([isRead])
+    @@index([createdAt])
+}
+
+// Password Reset Tokens
+model PasswordResetToken {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    email     String
+    token     String
+    expiresAt DateTime
+    isUsed    Boolean  @default(false)
+    createdAt DateTime @default(now())
+
+    @@index([email])
+    @@index([expiresAt])
+}
+
+// Wishlist Items for back-in-stock and price drop alerts
+model WishlistItem {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId      String
+    productId   String
+    notifyStock Boolean  @default(true)
+    notifyPrice Boolean  @default(true)
+    priceAtAdd  Float
+    createdAt   DateTime @default(now())
+
+    @@unique([userId, productId])
+}
+
+// Abandoned Carts tracking
+model AbandonedCart {
+    id           String    @id @default(auto()) @map("_id") @db.ObjectId
+    userId       String
+    items        Json      // Cart items JSON
+    totalValue   Float
+    reminderSent Int       @default(0) // Number of reminders sent
+    lastReminder DateTime?
+    createdAt    DateTime  @default(now())
+    updatedAt    DateTime  @updatedAt
+
+    @@unique([userId])
+}
+
+// Recently Viewed Products tracking
+model RecentlyViewed {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String
+    productId String   @db.ObjectId
+    viewCount Int      @default(1)
+    viewedAt  DateTime @default(now())
+    createdAt DateTime @default(now())
+
+    product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, productId])
+    @@index([userId])
+    @@index([viewedAt])
+}
+
+// Referral System
+model Referral {
+    id            String   @id @default(auto()) @map("_id") @db.ObjectId
+    referrerCode  String   @unique
+    referrerId    String   @db.ObjectId
+    referredEmail String
+    referredId    String?  @db.ObjectId
+    rewardAmount  Float    @default(0)
+    referrerBonus Float    @default(0)
+    status        String   @default("pending") // pending, completed, expired
+    expiresAt     DateTime
+    completedAt   DateTime?
+    createdAt     DateTime @default(now())
+
+    @@index([referrerId])
+    @@index([status])
+    @@index([expiresAt])
+}
+
+// Returns & Refunds System
+model ReturnRequest {
+    id               String   @id @default(auto()) @map("_id") @db.ObjectId
+    orderId          String   @unique @db.ObjectId
+    userId           String   @db.ObjectId
+    productId        String   @db.ObjectId
+    quantity         Int
+    issue            String   // Issue category: defective, wrong-item, not-as-described, damaged, other
+    description      String   // Detailed description of issue
+    images           String[] // Array of image URLs (2-4 images)
+    videos           String[] @default([]) // Array of video URLs (max 2)
+    status           String   @default("requested") // requested, approved, rejected, returned, refunded, replacement-shipped
+    requestType      String   @default("return") // return or replace
+    refundAmount     Float
+    refundMethod     String?  // stripe, cashfree, cod, credit-note
+    
+    // Customer bank details for COD refunds
+    customerName     String?  // Customer name for bank transfer
+    customerMobile   String?  // Customer contact number
+    bankAccountNo    String?  // For COD refunds
+    ifscCode         String?  // For COD refunds
+    
+    rmaNumber        String   @unique
+    approvedAt       DateTime?
+    rejectedAt       DateTime?
+    pickedUpAt       DateTime? // When return item was picked up
+    refundedAt       DateTime?
+    approverComments String?
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    // Relations
+    order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([status])
+}
+
+// Flash Sales & Limited Deals
+model FlashSale {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    title       String
+    description String?
+    products    String[] // Array of product IDs (kept for backward compatibility)
+    productQuantities Json @default("{}") // Map of productId -> quantity for flash sale
+    productDiscounts Json @default("{}") // Map of productId -> discount % for product-wise discounts
+    discount    Float    // Percentage discount (0-100)
+    maxQuantity Int      // Max quantity per product (fallback if not specified per product)
+    sold        Int      @default(0)
+    startTime   DateTime
+    endTime     DateTime
+    isActive    Boolean  @default(true)
+    bannerImage String?
+    allowCoupons Boolean @default(false) // Allow coupon codes on flash sale items
+    allowCrashCash Boolean @default(false) // Allow CrashCash on flash sale items
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([isActive])
+    @@index([startTime])
+    @@index([endTime])
+}
+
+// Seller Metrics & Ratings
+model SellerMetrics {
+    id                String   @id @default(auto()) @map("_id") @db.ObjectId
+    storeId           String   @unique @db.ObjectId
+    trustScore        Float    @default(5.0) // 0-5
+    totalSales        Int      @default(0)
+    totalRevenue      Float    @default(0)
+    averageRating     Float    @default(0)
+    responseTime      Int      @default(24) // hours
+    shippingAccuracy  Float    @default(100) // percentage
+    returnRate        Float    @default(0) // percentage
+    customerSatisfaction Float @default(100) // percentage
+    lastUpdated       DateTime @updatedAt
+    createdAt         DateTime @default(now())
+
+    @@index([trustScore])
+}
+
+// Saved Searches & Filters
+model SavedSearch {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String
+    name      String
+    filters   Json     // Saved filter parameters
+    category  String?
+    priceMin  Float?
+    priceMax  Float?
+    sortBy    String   @default("relevance")
+    createdAt DateTime @default(now())
+
+    @@unique([userId, name])
+    @@index([userId])
+}
+
+// Live Chat Messages
+model ChatMessage {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String
+    sellerId  String?  @db.ObjectId
+    message   String
+    type      String   @default("text") // text, image, file
+    metadata  Json?    // Additional data
+    isRead    Boolean  @default(false)
+    createdAt DateTime @default(now())
+
+    @@index([userId])
+    @@index([sellerId])
+    @@index([createdAt])
+}
+
+// Support Tickets & Complaints
+model Complaint {
+    id            String   @id @default(auto()) @map("_id") @db.ObjectId
+    orderId       String?  @unique @db.ObjectId // Optional - linked to specific order
+    userId        String   @db.ObjectId
+    subject       String
+    description   String
+    category      String   // return, refund, damaged, wrong-item, delivery, quality, other
+    status        String   @default("open") // open, in-progress, waiting-customer, resolved, closed
+    priority      String   @default("normal") // low, normal, high, urgent
+    images        String[] // Issue images
+    messages      String[] // Chat message IDs
+    resolution    String?  // How was it resolved
+    assignedTo    String?  // Admin user ID
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    resolvedAt    DateTime?
+
+    // Relations
+    order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+    @@index([userId])
+    @@index([status])
+    @@index([priority])
+    @@index([category])
+}
+
+// Support Tickets (kept for general support)
+model SupportTicket {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId      String
+    subject     String
+    description String
+    status      String   @default("open") // open, in-progress, resolved, closed
+    priority    String   @default("normal") // low, normal, high, urgent
+    category    String   // billing, product, delivery, other
+    messages    String[] // Chat message IDs
+    assignedTo  String?  // Admin user ID
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    resolvedAt  DateTime?
+
+    @@index([userId])
+    @@index([status])
+    @@index([priority])
+}
+
+// Saved Payment Cards (One-Click Checkout)
+model SavedCard {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String
+    stripeTokenId String // Stripe payment method ID
+    last4     String   // Last 4 digits
+    brand     String   // visa, mastercard, etc
+    expMonth  Int
+    expYear   Int
+    isDefault Boolean  @default(false)
+    createdAt DateTime @default(now())
+
+    @@index([userId])
+}
+
+// Wishlist Sharing
+model SharedWishlist {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId      String
+    name        String   // Wishlist name
+    description String?
+    isPublic    Boolean  @default(false)
+    items       String[] // Product IDs
+    sharedWith  String[] // User emails
+    accessCode  String   @unique // Unique share link (automatically indexed)
+    viewCount   Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([userId])
+}
+
+// SEO Meta Tags
+model SEOMeta {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    productId   String?  @unique // Unique constraint (automatically indexed)
+    categorySlug String? @unique // Unique constraint (automatically indexed)
+    title       String
+    description String
+    keywords    String[]
+    ogImage     String?
+    ogTitle     String?
+    ogDescription String?
+    twitterCard String?
+    canonical   String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+}
+
+// Email Campaign Templates & History
+model EmailCampaign {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    name            String
+    type            String   // welcome, abandoned-cart, post-purchase, birthday, flash-sale, newsletter
+    template        String   // Template name
+    subject         String
+    content         String   // HTML content
+    recipientCount  Int      @default(0)
+    sentCount       Int      @default(0)
+    openCount       Int      @default(0)
+    clickCount      Int      @default(0)
+    conversionCount Int      @default(0)
+    status          String   @default("draft") // draft, scheduled, sent
+    scheduledFor    DateTime?
+    sentAt          DateTime?
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([status])
+    @@index([type])
+}
+
+// Newsletter Subscriptions
+model NewsletterSubscription {
+    id            String   @id @default(auto()) @map("_id") @db.ObjectId
+    email         String   @unique
+    name          String   @default("Subscriber")
+    userId        String?  @db.ObjectId // Optional link to user
+    isSubscribed  Boolean  @default(true)
+    subscribeFreq String   @default("weekly") // daily, weekly, monthly
+    interests     String[] @default([]) // product categories of interest
+    unsubscribeToken String? @unique // Token for unsubscribe link
+    lastEmailSent DateTime?
+    subscribedAt  DateTime @default(now())
+    unsubscribedAt DateTime?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    @@index([isSubscribed])
+    @@index([subscribedAt])
+}
+
+// Admin Access Requests
+model AdminAccessRequest {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    email     String   @unique
+    status    String   @default("pending") // pending, approved, rejected
+    approvalToken String @unique
+    requestedAt DateTime @default(now())
+    reviewedAt DateTime?
+    reviewedBy String? // Admin email who reviewed
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([status])
+}
+
+// User Feedback
+model UserFeedback {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId          String?  @db.ObjectId
+    userEmail       String
+    userName        String?
+    feedbackType    String   // "product" or "app"
+    productId       String?  @db.ObjectId // For product reviews
+    productName     String?
+    rating          Int      // 1-5
+    title           String
+    message         String
+    isAnonymous     Boolean  @default(false)
+    status          String   @default("pending") // pending, approved, rejected
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([feedbackType])
+    @@index([status])
+    @@index([rating])
+    @@index([createdAt])
+}
+
+// Inactive User Tracking
+model InactiveUserAlert {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId          String   @unique @db.ObjectId
+    userEmail       String   @unique
+    userName        String?
+    lastOrderDate   DateTime?
+    lastLoginDate   DateTime?
+    daysSinceActivity Int    @default(0)
+    emailSent       Boolean  @default(false)
+    emailSentAt     DateTime?
+    offerCode       String?
+    offerDiscount   Int      @default(20) // percentage
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([emailSent])
+    @@index([daysSinceActivity])
+}
+
+// Scratch Card for users - stores rewards/coupons won from scratch cards
+model ScratchCard {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId          String   @db.ObjectId
+    rewardType      String   // "discount", "cashback", "free-shipping", "voucher"
+    rewardValue     Float    // Discount amount or percentage
+    rewardCode      String?  // Coupon code if applicable
+    isUsed          Boolean  @default(false)
+    usedAt          DateTime?
+    expiresAt       DateTime
+    createdAt       DateTime @default(now())
+
+    @@index([userId])
+    @@index([isUsed])
+    @@index([expiresAt])
+}
+
+// Cart Items - stores individual cart items per user
+model CartItem {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId          String   @db.ObjectId
+    productId       String   @db.ObjectId
+    quantity        Int
+    price           Float    // Price at time of adding to cart
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@unique([userId, productId])
+    @@index([userId])
+}
+
+// User Coupons - tracks which coupons each user has
+model UserCoupon {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId          String   @db.ObjectId
+    couponCode      String
+    isUsed          Boolean  @default(false)
+    usedAt          DateTime?
+    usedInOrderId   String?  @db.ObjectId
+    expiresAt       DateTime
+    createdAt       DateTime @default(now())
+
+    @@unique([userId, couponCode])
+    @@index([userId])
+    @@index([isUsed])
+}
+
+// Seller Queries - for users wanting to become sellers
+model SellerQuery {
+     id              String   @id @default(auto()) @map("_id") @db.ObjectId
+     name            String
+     email           String   @unique
+     phone           String
+     companyName     String?
+     businessType    String   // individual, business, partnership
+     description     String
+     category        String   // product categories they want to sell
+     experience      String   // experience level
+     documents       String[] // business registration, tax docs, etc
+     status          String   @default("pending") // pending, reviewing, approved, rejected
+     notes           String?  // admin notes
+     rejectionReason String?
+     approvedAt      DateTime?
+     createdAt       DateTime @default(now())
+     updatedAt       DateTime @updatedAt
+
+     @@index([status])
+     @@index([createdAt])
+}
+
+// ChatBot Messages - for support chat with media
+model ChatBotMessage {
+     id              String   @id @default(auto()) @map("_id") @db.ObjectId
+     userId          String   @db.ObjectId
+     message         String?
+     messageType     String   @default("text") // text, image, video
+     mediaUrl        String?  // URL to image or video
+     mediaType       String?  // image/jpeg, video/mp4, etc
+     mediaDuration   Int?     // video duration in seconds
+     complaintId     String?  @db.ObjectId // Reference to complaint if filed
+     isBot           Boolean  @default(false)
+     createdAt       DateTime @default(now())
+
+     @@index([userId])
+     @@index([isBot])
+     @@index([createdAt])
+}
+
+// Out of Stock Notifications - users wanting to be notified when product is back in stock
+model OutOfStockNotification {
+    id            String   @id @default(auto()) @map("_id") @db.ObjectId
+    productId     String   @db.ObjectId
+    userEmail     String
+    userName      String?
+    userPhone     String?
+    notificationType String @default("email") // email, sms, whatsapp
+    status        String   @default("pending") // pending, notified, cancelled
+    notifiedAt    DateTime?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    // Relations
+    product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@unique([productId, userEmail])
+    @@index([productId])
+    @@index([status])
+    @@index([createdAt])
+}
+
+// Support Conversation - stores chat history for customer support
+model SupportConversation {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String   @unique @db.ObjectId
+    messages  Json     @default("[]") // Array of message objects
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([updatedAt])
+}
+
+// CrashCash Rewards - tracks all scratch card rewards earned by users
+model CrashCashReward {
+    id            String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId        String   @db.ObjectId
+    orderId       String   @db.ObjectId
+    amount        Float    // Reward amount earned
+    source        String   @default("scratch_card") // scratch_card, order_placed, refund, bonus
+    status        String   @default("active") // active, expired, used
+    productName   String?  // Product associated with reward
+    productImage  String?  // Product image for display
+    earnedAt      DateTime @default(now())
+    expiresAt     DateTime? // Optional expiry date
+    usedAt        DateTime? // When the reward was used
+    
+    @@index([userId])
+    @@index([orderId])
+    @@index([status])
+    @@index([earnedAt])
+}

@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@layer components {
+    @keyframes marqueeScroll {
+        0% {
+            transform: translateX(0%);
+        }
+        100% {
+            transform: translateX(-50%);
+        }
+    }
+}
+
+@layer base {
+    button {
+        cursor: pointer;
+    }
+    
+    /* Dark mode configuration */
+    :root.dark {
+        color-scheme: dark;
+    }
+    
+    :root {
+        color-scheme: light;
+    }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Explicit dark mode class support */
+:root.dark {
+    color-scheme: dark;
+}
