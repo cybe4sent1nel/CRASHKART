@@ -7,43 +7,40 @@ export async function POST(request) {
         const feedbackData = await request.json()
 
         // Validate feedback
-        if (!feedbackData.email) {
+        const email = feedbackData.userEmail || feedbackData.email
+        const message = feedbackData.message || feedbackData.feedback
+        
+        if (!email) {
             return new Response(
                 JSON.stringify({ error: 'Email is required' }),
                 { status: 400 }
             )
         }
 
-        if (!feedbackData.feedback || feedbackData.feedback.length < 120) {
+        if (!message || message.length < 10) {
             return new Response(
-                JSON.stringify({ error: 'Feedback must be at least 120 characters' }),
+                JSON.stringify({ error: 'Feedback message is required' }),
                 { status: 400 }
             )
         }
 
         // Find user by email if exists
         let user = await prisma.user.findUnique({
-            where: { email: feedbackData.email }
+            where: { email }
         })
 
         // Save to database using UserFeedback model
         const feedback = await prisma.userFeedback.create({
             data: {
-                userEmail: feedbackData.email,
-                userName: feedbackData.name || 'Anonymous',
-                feedbackType: 'app',
-                rating: parseInt(feedbackData.overallRating?.replace(/[^0-5]/g, '') || '5'),
-                title: `App Feedback - ${feedbackData.overallRating || 'General'}`,
-                message: JSON.stringify({
-                    overallRating: feedbackData.overallRating,
-                    appExperience: feedbackData.appExperience,
-                    productQuality: feedbackData.productQuality,
-                    deliveryExperience: feedbackData.deliveryExperience,
-                    customerService: feedbackData.customerService,
-                    feedback: feedbackData.feedback
-                }),
+                userEmail: email,
+                userName: feedbackData.userName || feedbackData.name || 'Anonymous',
+                feedbackType: feedbackData.feedbackType || 'app',
+                rating: feedbackData.rating || 5,
+                title: feedbackData.title || 'App Feedback',
+                message: message,
                 userId: user?.id,
-                status: 'pending'
+                status: 'approved',
+                isAnonymous: feedbackData.isAnonymous || false
             }
         })
 

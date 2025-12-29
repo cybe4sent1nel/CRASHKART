@@ -11,58 +11,37 @@ export default function ProductReviews({ productId }) {
     const [hoverRating, setHoverRating] = useState(0)
     const [reviewText, setReviewText] = useState('')
     const [userName, setUserName] = useState('')
+    const [userEmail, setUserEmail] = useState('')
+    const [userId, setUserId] = useState('')
     const [editingReviewId, setEditingReviewId] = useState(null)
     const [editRating, setEditRating] = useState(0)
     const [editReviewText, setEditReviewText] = useState('')
     const [editHoverRating, setEditHoverRating] = useState(0)
 
     useEffect(() => {
-        // Load reviews from localStorage
-        const allReviews = localStorage.getItem('productReviews')
-        if (allReviews) {
-            const parsed = JSON.parse(allReviews)
-            const productReviews = parsed.filter(r => r.productId === productId)
-            setReviews(productReviews)
-        } else {
-            // Mock reviews
-            setReviews([
-                {
-                    id: 1,
-                    productId,
-                    userName: 'Rahul Sharma',
-                    rating: 5,
-                    text: 'Excellent product! Worth every rupee. Fast delivery and great quality.',
-                    date: '2025-11-20',
-                    helpful: 12
-                },
-                {
-                    id: 2,
-                    productId,
-                    userName: 'Priya Singh',
-                    rating: 4,
-                    text: 'Good product. Exactly as described. Packaging could be better.',
-                    date: '2025-11-18',
-                    helpful: 8
-                },
-                {
-                    id: 3,
-                    productId,
-                    userName: 'Amit Kumar',
-                    rating: 5,
-                    text: 'Amazing! This is my second purchase from CrashKart. Never disappointed.',
-                    date: '2025-11-15',
-                    helpful: 15
-                }
-            ])
-        }
-
+        fetchReviews()
         // Get current user
         const user = localStorage.getItem('user')
         if (user) {
             const parsed = JSON.parse(user)
             setUserName(parsed.name)
+            setUserEmail(parsed.email)
+            setUserId(parsed.id)
+            console.log('Current user ID:', parsed.id)
         }
     }, [productId])
+
+    const fetchReviews = async () => {
+        try {
+            const response = await fetch(`/api/reviews?productId=${productId}`)
+            const data = await response.json()
+            if (data.success) {
+                setReviews(data.reviews || [])
+            }
+        } catch (error) {
+            console.error('Error fetching reviews:', error)
+        }
+    }
 
     const handleSubmitReview = (e) => {
         e.preventDefault()
@@ -111,10 +90,10 @@ export default function ProductReviews({ productId }) {
     const handleEditReview = (review) => {
         setEditingReviewId(review.id)
         setEditRating(review.rating)
-        setEditReviewText(review.text)
+        setEditReviewText(review.review || review.text || '')
     }
 
-    const handleSaveEditedReview = (reviewId) => {
+    const handleSaveEditedReview = async (reviewId) => {
         if (editRating === 0) {
             toast.error('Please select a rating')
             return
@@ -125,29 +104,51 @@ export default function ProductReviews({ productId }) {
             return
         }
 
-        // Update review in state
-        const updatedReviews = reviews.map(r => 
-            r.id === reviewId 
-                ? { ...r, rating: editRating, text: editReviewText, date: new Date().toISOString().split('T')[0] }
-                : r
-        )
-        setReviews(updatedReviews)
+        try {
+            // Get user email for API
+            const user = localStorage.getItem('user')
+            if (!user) {
+                toast.error('Please login to edit review')
+                return
+            }
+            const userEmail = JSON.parse(user).email
 
-        // Update in localStorage
-        const allReviews = localStorage.getItem('productReviews')
-        if (allReviews) {
-            const all = JSON.parse(allReviews)
-            const updated = all.map(r => 
+            // Update via API
+            const response = await fetch('/api/reviews', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reviewId,
+                    userId: userEmail,
+                    rating: editRating,
+                    review: editReviewText
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                toast.error(error.error || 'Failed to update review')
+                return
+            }
+
+            // Update review in state
+            const updatedReviews = reviews.map(r => 
                 r.id === reviewId 
-                    ? { ...r, rating: editRating, text: editReviewText, date: new Date().toISOString().split('T')[0] }
+                    ? { ...r, rating: editRating, review: editReviewText, updatedAt: new Date().toISOString() }
                     : r
             )
-            localStorage.setItem('productReviews', JSON.stringify(updated))
-        }
+            setReviews(updatedReviews)
 
-        setEditingReviewId(null)
-        setEditRating(0)
-        setEditReviewText('')
+            setEditingReviewId(null)
+            setEditRating(0)
+            setEditReviewText('')
+            toast.success('Review updated successfully!')
+        } catch (error) {
+            console.error('Error updating review:', error)
+            toast.error('Failed to update review')
+        }
         toast.success('Review updated successfully!')
     }
 
@@ -364,11 +365,11 @@ export default function ProductReviews({ productId }) {
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-gradient-to-br from-red-400 to-orange-400 rounded-full flex items-center justify-center text-white font-bold">
-                                            {review.userName.charAt(0)}
+                                            {review.user?.name?.charAt(0) || review.userName?.charAt(0) || 'U'}
                                         </div>
                                         <div>
-                                            <p className="font-semibold text-slate-800">{review.userName}</p>
-                                            <p className="text-xs text-slate-500">{new Date(review.date).toLocaleDateString()}</p>
+                                            <p className="font-semibold text-slate-800">{review.user?.name || review.userName || 'Anonymous'}</p>
+                                            <p className="text-xs text-slate-500">{new Date(review.createdAt || review.date).toLocaleDateString()}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -381,7 +382,10 @@ export default function ProductReviews({ productId }) {
                                                 />
                                             ))}
                                         </div>
-                                        {userName === review.userName && (
+                                        {(() => {
+                                            console.log('Comparing userId:', userId, 'with review.userId:', review.userId, 'match:', userId === review.userId)
+                                            return userId && review.userId === userId
+                                        })() && (
                                             <div className="flex gap-2 ml-4">
                                                 <button 
                                                     onClick={() => handleEditReview(review)}
@@ -403,8 +407,37 @@ export default function ProductReviews({ productId }) {
                                 </div>
 
                                 <p className="text-slate-700 leading-relaxed mb-4">
-                                    {review.text}
+                                    {review.review || review.text}
                                 </p>
+
+                                {/* Review Images */}
+                                {review.images && review.images.length > 0 && (
+                                    <div className="grid grid-cols-3 gap-2 mb-4">
+                                        {review.images.map((img, idx) => (
+                                            <img 
+                                                key={idx}
+                                                src={img}
+                                                alt={`Review image ${idx + 1}`}
+                                                className="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
+                                                onClick={() => window.open(img, '_blank')}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Review Videos */}
+                                {review.videos && review.videos.length > 0 && (
+                                    <div className="grid grid-cols-2 gap-2 mb-4">
+                                        {review.videos.map((vid, idx) => (
+                                            <video 
+                                                key={idx}
+                                                src={vid}
+                                                className="w-full h-32 object-cover rounded-lg"
+                                                controls
+                                            />
+                                        ))}
+                                    </div>
+                                )}
 
                                 <div className="flex items-center gap-4 text-sm">
                                     <button className="flex items-center gap-2 text-slate-600 hover:text-red-600 transition">

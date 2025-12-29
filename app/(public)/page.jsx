@@ -98,9 +98,6 @@ export default function Home() {
             <div className='relative py-16 bg-gradient-to-br from-blue-50 to-cyan-50 overflow-hidden'>
                 <Spotlight className="absolute inset-0 pointer-events-none" fill="rgba(59, 130, 246, 0.15)" />
                 <div className='max-w-7xl mx-auto px-6 relative z-10'>
-                    <h2 className='text-4xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent'>
-                        What Our Customers Say
-                    </h2>
                     <TestimonialsStack />
                 </div>
             </div>

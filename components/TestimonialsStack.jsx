@@ -3,12 +3,16 @@ import React, { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import { assets } from '@/assets/assets'
+import dynamic from 'next/dynamic'
+import reviewAnimData from '@/public/animations/Review.json'
 
-const testimonials = [
+const LottieAnimation = dynamic(() => import('./LottieAnimation'), { ssr: false })
+
+const defaultTestimonials = [
     {
         id: 1,
         name: 'Sarah Johnson',
-        role: 'Tech Enthusiast',
+        role: 'Customer',
         text: 'Amazing quality products and super fast delivery! CrashKart has become my go-to for all electronics.',
         rating: 5,
         image: assets.profile_pic1
@@ -16,7 +20,7 @@ const testimonials = [
     {
         id: 2,
         name: 'Michael Chen',
-        role: 'Product Manager',
+        role: 'Customer',
         text: 'Excellent customer service and the prices are unbeatable. Highly recommend CrashKart!',
         rating: 5,
         image: assets.profile_pic2
@@ -24,42 +28,54 @@ const testimonials = [
     {
         id: 3,
         name: 'Emma Rodriguez',
-        role: 'Freelancer',
+        role: 'Customer',
         text: 'Best shopping experience ever. The website is smooth and checkout is super quick.',
         rating: 5,
         image: assets.profile_pic3
-    },
-    {
-        id: 4,
-        name: 'David Kumar',
-        role: 'Student',
-        text: 'Love the Flash Sale section! Got amazing deals on gadgets I was wanting.',
-        rating: 4,
-        image: assets.profile_pic1
-    },
-    {
-        id: 5,
-        name: 'Lisa Anderson',
-        role: 'Business Owner',
-        text: 'Bulk orders are handled professionally. CrashKart is perfect for business needs too.',
-        rating: 5,
-        image: assets.profile_pic2
     }
 ]
 
 export function TestimonialsStack() {
     const [currentIndex, setCurrentIndex] = useState(0)
     const [isAutoplay, setIsAutoplay] = useState(true)
+    const [testimonials, setTestimonials] = useState(defaultTestimonials)
+    const [loading, setLoading] = useState(true)
+
+    // Fetch app reviews
+    useEffect(() => {
+        const fetchReviews = async () => {
+            try {
+                const response = await fetch('/api/app-reviews?limit=10')
+                const data = await response.json()
+                
+                if (data.success && data.testimonials.length > 0) {
+                    // Add profile images to testimonials
+                    const testimonialsWithImages = data.testimonials.map((t, idx) => ({
+                        ...t,
+                        image: [assets.profile_pic1, assets.profile_pic2, assets.profile_pic3][idx % 3]
+                    }))
+                    setTestimonials(testimonialsWithImages)
+                }
+            } catch (error) {
+                console.error('Error fetching reviews:', error)
+                // Keep default testimonials on error
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchReviews()
+    }, [])
 
     useEffect(() => {
-        if (!isAutoplay) return
+        if (!isAutoplay || loading) return
 
         const timer = setInterval(() => {
             setCurrentIndex((prev) => (prev + 1) % testimonials.length)
         }, 5000)
 
         return () => clearInterval(timer)
-    }, [isAutoplay])
+    }, [isAutoplay, loading, testimonials.length])
 
     const goToPrevious = () => {
         setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)
@@ -72,7 +88,29 @@ export function TestimonialsStack() {
     }
 
     return (
-        <div className='w-full max-w-4xl mx-auto py-12'>
+        <div className='w-full max-w-6xl mx-auto py-12'>
+            {/* Header with Animation Background */}
+            <div className='relative mb-12'>
+                {/* Lottie Animation Background */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                    <LottieAnimation 
+                        animationData={reviewAnimData}
+                        width='300px'
+                        height='300px'
+                        loop={true}
+                        autoplay={true}
+                    />
+                </div>
+                
+                {/* Text Content */}
+                <div className='relative z-10 text-center'>
+                    <h2 className='text-5xl font-bold mb-3 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent'>
+                        What Our Customers Say
+                    </h2>
+                    <p className='text-gray-600 text-lg'>Real reviews from real customers</p>
+                </div>
+            </div>
+
             <div className='relative h-96 perspective'>
                 {testimonials.map((testimonial, index) => {
                     const distance = (index - currentIndex + testimonials.length) % testimonials.length

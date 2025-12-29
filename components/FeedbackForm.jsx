@@ -2,13 +2,29 @@
 import React, { useState } from 'react'
 import { saveFeedback } from '@/lib/feedbackService'
 import styled from 'styled-components'
-import { ChevronRight, ChevronLeft, Check, X, AlertCircle } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Check, X, AlertCircle, Smile } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const FeedbackForm = ({ onClose, isOpen }) => {
     const [step, setStep] = useState(1)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+    // Common emojis for feedback
+    const emojis = ['😀', '😃', '😄', '😁', '😊', '🙂', '😍', '🥰', '😘', '😗', 
+                    '😙', '😚', '🤗', '🤩', '🤔', '🤨', '😐', '😑', '😶', '🙄',
+                    '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴', '😌',
+                    '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '👏', '🙌', '👐',
+                    '🔥', '⭐', '✨', '💯', '💪', '❤️', '💕', '💖', '💗', '💝'];
+
+    const addEmoji = (emoji) => {
+        setFormData(prev => ({
+            ...prev,
+            feedback: prev.feedback + emoji
+        }));
+        setShowEmojiPicker(false);
+    };
 
     const [formData, setFormData] = useState({
         name: '',
@@ -82,8 +98,30 @@ const FeedbackForm = ({ onClose, isOpen }) => {
 
         setIsSubmitting(true)
         try {
-            const success = await saveFeedback(formData)
-            if (success) {
+            // Get user info from localStorage
+            const user = JSON.parse(localStorage.getItem('user') || '{}')
+            
+            // Prepare feedback data for API
+            const feedbackPayload = {
+                userName: formData.name || user.name || 'Anonymous',
+                userEmail: formData.email,
+                rating: getRatingValue(formData.overallRating),
+                title: 'App Feedback',
+                message: formData.feedback,
+                feedbackType: 'app',
+                isAnonymous: !formData.name
+            }
+
+            // Send to backend API
+            const response = await fetch('/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(feedbackPayload)
+            })
+
+            if (response.ok) {
+                // Save to localStorage for version tracking
+                await saveFeedback(formData)
                 toast.success('Thank you for your feedback!')
                 setStep(6) // Show success screen
                 setTimeout(() => {
@@ -98,6 +136,22 @@ const FeedbackForm = ({ onClose, isOpen }) => {
         } finally {
             setIsSubmitting(false)
         }
+    }
+
+    const getRatingValue = (ratingText) => {
+        // If already a number, return it
+        if (!isNaN(ratingText)) {
+            return parseInt(ratingText)
+        }
+        // Legacy text mapping
+        const ratingMap = {
+            'Very Satisfied': 5,
+            'Satisfied': 4,
+            'Neutral': 3,
+            'Unsatisfied': 2,
+            'Very Unsatisfied': 1
+        }
+        return ratingMap[ratingText] || 3
     }
 
     if (!isOpen) return null
@@ -175,21 +229,44 @@ const FeedbackForm = ({ onClose, isOpen }) => {
                                     <div className="form-step">
                                         <p id="h1">Overall Experience</p>
                                         <p id="h4">How satisfied are you with your overall shopping experience? <span>*</span></p>
-                                        <div className="rating-buttons">
-                                            {['Very Satisfied', 'Satisfied', 'Neutral', 'Unsatisfied'].map((option) => (
+                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', margin: '30px 0' }}>
+                                            {[1, 2, 3, 4, 5].map((star) => (
                                                 <button
-                                                    key={option}
+                                                    key={star}
                                                     type="button"
                                                     onClick={() => {
-                                                        setFormData(prev => ({ ...prev, overallRating: option }))
+                                                        setFormData(prev => ({ ...prev, overallRating: star.toString() }))
                                                         setError('')
                                                     }}
-                                                    className={`rating-btn ${formData.overallRating === option ? 'selected' : ''}`}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        fontSize: '48px',
+                                                        color: parseInt(formData.overallRating) >= star ? '#fbbf24' : '#d1d5db',
+                                                        transition: 'all 0.2s',
+                                                        transform: parseInt(formData.overallRating) >= star ? 'scale(1.1)' : 'scale(1)'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.transform = 'scale(1.2)'
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.transform = parseInt(formData.overallRating) >= star ? 'scale(1.1)' : 'scale(1)'
+                                                    }}
                                                 >
-                                                    {option}
+                                                    ★
                                                 </button>
                                             ))}
                                         </div>
+                                        {formData.overallRating && (
+                                            <p style={{ textAlign: 'center', color: '#6b7280', marginTop: '-10px', marginBottom: '20px' }}>
+                                                {formData.overallRating === '5' && 'Excellent! ⭐'}
+                                                {formData.overallRating === '4' && 'Very Good! 😊'}
+                                                {formData.overallRating === '3' && 'Good 👍'}
+                                                {formData.overallRating === '2' && 'Fair 😐'}
+                                                {formData.overallRating === '1' && 'Poor 😔'}
+                                            </p>
+                                        )}
                                         {error && <p className="error-message">{error}</p>}
                                     </div>
                                 )}
@@ -284,14 +361,77 @@ const FeedbackForm = ({ onClose, isOpen }) => {
                                         <p id="h1">Your Feedback</p>
                                         <p id="h4">Tell us what we can improve: <span>*</span></p>
                                         <p className="char-hint">Minimum 120 characters</p>
-                                        <textarea
-                                            name="feedback"
-                                            value={formData.feedback}
-                                            onChange={handleChange}
-                                            placeholder="Share your thoughts, suggestions, or concerns..."
-                                            rows={6}
-                                            className="feedback-textarea"
-                                        />
+                                        <div style={{ position: 'relative' }}>
+                                            <textarea
+                                                name="feedback"
+                                                value={formData.feedback}
+                                                onChange={handleChange}
+                                                placeholder="Share your thoughts, suggestions, or concerns..."
+                                                rows={6}
+                                                className="feedback-textarea"
+                                                style={{ paddingRight: '40px' }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: '12px',
+                                                    top: '12px',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    color: '#6b7280',
+                                                    transition: 'color 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => e.target.style.color = '#374151'}
+                                                onMouseLeave={(e) => e.target.style.color = '#6b7280'}
+                                            >
+                                                <Smile size={20} />
+                                            </button>
+                                            
+                                            {/* Emoji Picker */}
+                                            {showEmojiPicker && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    right: 0,
+                                                    top: '100%',
+                                                    marginTop: '8px',
+                                                    background: 'white',
+                                                    border: '1px solid #d1d5db',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                                    padding: '8px',
+                                                    zIndex: 10,
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'repeat(8, 1fr)',
+                                                    gap: '4px',
+                                                    maxHeight: '192px',
+                                                    overflowY: 'auto'
+                                                }}>
+                                                    {emojis.map((emoji, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => addEmoji(emoji)}
+                                                            style={{
+                                                                fontSize: '24px',
+                                                                background: 'none',
+                                                                border: 'none',
+                                                                cursor: 'pointer',
+                                                                padding: '4px',
+                                                                borderRadius: '4px',
+                                                                transition: 'background 0.2s'
+                                                            }}
+                                                            onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
+                                                            onMouseLeave={(e) => e.target.style.background = 'none'}
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                         <p className="char-count">
                                             {formData.feedback.length}/120 characters
                                             {formData.feedback.length >= 120 && (

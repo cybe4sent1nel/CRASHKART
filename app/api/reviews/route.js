@@ -25,6 +25,7 @@ export async function GET(request) {
       include: {
         user: {
           select: {
+            id: true,
             name: true,
             image: true,
           },
@@ -32,6 +33,12 @@ export async function GET(request) {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Transform reviews to include userId at top level for easier access
+    const transformedReviews = reviews.map(review => ({
+      ...review,
+      userId: review.user?.id || review.userId
+    }));
 
     // Calculate average rating
     const avgRating = reviews.length > 0
@@ -49,7 +56,7 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
-      reviews,
+      reviews: transformedReviews,
       avgRating: parseFloat(avgRating.toFixed(1)),
       totalReviews: reviews.length,
       ratingDistribution,
@@ -68,11 +75,20 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
-    const { productId, userId, orderId, rating, review } = await request.json();
+    const { productId, userId, orderId, rating, review, images = [], videos = [] } = await request.json();
 
     if (!productId || !userId || !orderId || !rating) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate orderId format (MongoDB ObjectID should be 24 hex characters)
+    if (!/^[0-9a-fA-F]{24}$/.test(orderId)) {
+      console.error('Invalid orderId format:', orderId, 'length:', orderId.length);
+      return NextResponse.json(
+        { error: 'Invalid order ID format' },
         { status: 400 }
       );
     }
@@ -84,11 +100,26 @@ export async function POST(request) {
       );
     }
 
+    // Get user by email to find their MongoDB userId
+    const user = await prisma.user.findUnique({
+      where: { email: userId }, // userId is actually email from frontend
+      select: { id: true }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    const actualUserId = user.id;
+
     // Check if order exists and is delivered
     const order = await prisma.order.findFirst({
       where: {
         id: orderId,
-        userId,
+        userId: actualUserId,
         status: 'DELIVERED',
         orderItems: {
           some: {
@@ -109,7 +140,7 @@ export async function POST(request) {
     const existingReview = await prisma.rating.findUnique({
       where: {
         userId_productId_orderId: {
-          userId,
+          userId: actualUserId,
           productId,
           orderId,
         },
@@ -127,14 +158,17 @@ export async function POST(request) {
     const newReview = await prisma.rating.create({
       data: {
         productId,
-        userId,
+        userId: actualUserId,
         orderId,
         rating,
         review: review || '',
+        images: images || [],
+        videos: videos || [],
       },
       include: {
         user: {
           select: {
+            id: true,
             name: true,
             image: true,
           },
@@ -160,7 +194,7 @@ export async function POST(request) {
  */
 export async function PATCH(request) {
   try {
-    const { reviewId, userId, rating, review } = await request.json();
+    const { reviewId, userId, rating, review, images, videos } = await request.json();
 
     if (!reviewId || !userId) {
       return NextResponse.json(
@@ -169,11 +203,26 @@ export async function PATCH(request) {
       );
     }
 
+    // Get user by email to find their MongoDB userId
+    const user = await prisma.user.findUnique({
+      where: { email: userId }, // userId is actually email from frontend
+      select: { id: true }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    const actualUserId = user.id;
+
     // Check if review belongs to user
     const existingReview = await prisma.rating.findFirst({
       where: {
         id: reviewId,
-        userId,
+        userId: actualUserId,
       },
     });
 
@@ -189,10 +238,13 @@ export async function PATCH(request) {
       data: {
         ...(rating && { rating }),
         ...(review !== undefined && { review }),
+        ...(images !== undefined && { images }),
+        ...(videos !== undefined && { videos }),
       },
       include: {
         user: {
           select: {
+            id: true,
             name: true,
             image: true,
           },

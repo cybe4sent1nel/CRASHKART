@@ -21,13 +21,16 @@ export default function CookiePopup() {
         // Run only on client side
         if (typeof window !== 'undefined') {
             const cookieConsent = localStorage.getItem('cookieConsent');
-            if (!cookieConsent) {
-                // Show popup after a small delay to ensure page is fully loaded
-                const timer = setTimeout(() => {
-                    setShowPopup(true);
-                }, 300);
-                return () => clearTimeout(timer);
+            if (cookieConsent) {
+                // User has already made a choice, don't show popup
+                setShowPopup(false);
+                return;
             }
+            // Show popup after a small delay to ensure page is fully loaded
+            const timer = setTimeout(() => {
+                setShowPopup(true);
+            }, 300);
+            return () => clearTimeout(timer);
         }
     }, []);
 

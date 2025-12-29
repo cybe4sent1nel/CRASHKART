@@ -33,44 +33,124 @@ export async function GET(request) {
     const sortBy = searchParams.get('sortBy') || 'newest'
 
     // Validate inputs
-    if (!['product', 'app'].includes(type)) {
+    if (!['product', 'app', 'complaint'].includes(type)) {
       return NextResponse.json(
         { message: 'Invalid feedback type' },
         { status: 400 }
       )
     }
 
-    const orderBy = sortMappings[sortBy] || sortMappings.newest
+    let feedbacks = []
 
-    const feedbacks = await prisma.userFeedback.findMany({
-      where: {
-        feedbackType: type
-      },
-      orderBy,
-      select: {
-        id: true,
-        userId: true,
-        userEmail: true,
-        userName: true,
-        feedbackType: true,
-        productId: true,
-        productName: true,
-        rating: true,
-        title: true,
-        message: true,
-        isAnonymous: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    })
+    if (type === 'product') {
+      // Fetch product reviews from Rating table
+      const orderBy = sortBy === 'highest-rated' ? { rating: 'desc' } :
+                     sortBy === 'lowest-rated' ? { rating: 'asc' } :
+                     sortBy === 'oldest' ? { createdAt: 'asc' } :
+                     { createdAt: 'desc' }
 
-    return NextResponse.json({
-      feedbacks: feedbacks.map(f => ({
+      const ratings = await prisma.rating.findMany({
+        orderBy,
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+              image: true
+            }
+          }
+        }
+      })
+
+      feedbacks = ratings.map(r => ({
+        id: r.id,
+        userId: r.userId,
+        userEmail: r.user?.email || 'Unknown',
+        userName: r.user?.name || 'Anonymous',
+        feedbackType: 'product',
+        productId: r.productId,
+        productName: r.productId, // Could fetch actual product name if needed
+        rating: r.rating,
+        title: null,
+        message: r.review,
+        images: r.images || [],
+        videos: r.videos || [],
+        isAnonymous: false,
+        status: 'approved',
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        orderId: r.orderId
+      }))
+    } else if (type === 'app') {
+      // Fetch app reviews from UserFeedback table
+      const orderBy = sortMappings[sortBy] || sortMappings.newest
+
+      const appFeedbacks = await prisma.userFeedback.findMany({
+        where: {
+          feedbackType: 'app'
+        },
+        orderBy,
+        select: {
+          id: true,
+          userId: true,
+          userEmail: true,
+          userName: true,
+          feedbackType: true,
+          productId: true,
+          productName: true,
+          rating: true,
+          title: true,
+          message: true,
+          isAnonymous: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      })
+
+      feedbacks = appFeedbacks.map(f => ({
         ...f,
         createdAt: f.createdAt.toISOString(),
         updatedAt: f.updatedAt.toISOString()
       }))
+    } else if (type === 'complaint') {
+      // Fetch complaints from Complaint table
+      const orderBy = sortBy === 'oldest' ? { createdAt: 'asc' } : { createdAt: 'desc' }
+
+      const complaints = await prisma.complaint.findMany({
+        orderBy,
+        include: {
+          order: {
+            select: {
+              id: true,
+              status: true
+            }
+          }
+        }
+      })
+
+      feedbacks = complaints.map(c => ({
+        id: c.id,
+        userId: c.userId,
+        orderId: c.orderId,
+        orderNumber: c.order?.id || null,
+        subject: c.subject,
+        description: c.description,
+        category: c.category,
+        status: c.status,
+        priority: c.priority,
+        images: c.images,
+        resolution: c.resolution,
+        assignedTo: c.assignedTo,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        resolvedAt: c.resolvedAt?.toISOString() || null,
+        feedbackType: 'complaint'
+      }))
+    }
+
+    return NextResponse.json({
+      feedbacks
     })
   } catch (error) {
     console.error('Error fetching feedbacks:', error)

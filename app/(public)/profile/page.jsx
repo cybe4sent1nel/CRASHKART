@@ -1,21 +1,25 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Edit2, Save, X, User, Mail, Phone, MapPin, Camera, Shield, ShoppingBag, Heart, CreditCard, LogOut, Settings, Bell, Gift, Coins, MessageSquare, Tag, Package, Megaphone } from 'lucide-react'
+import { Edit2, Save, X, User, Mail, Phone, MapPin, Camera, Shield, ShoppingBag, Heart, CreditCard, LogOut, Settings, Bell, Gift, Coins, MessageSquare, Tag, Package, Megaphone, Star } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import NeonCheckbox from '@/components/NeonCheckbox'
 import AddressForm from '@/components/AddressForm'
+import MyReviews from '@/components/MyReviews'
 
 export default function Profile() {
     const router = useRouter()
+    const fileInputRef = useRef(null)
     const [user, setUser] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [uploadingImage, setUploadingImage] = useState(false)
     const [showAddressForm, setShowAddressForm] = useState(false)
     const [addresses, setAddresses] = useState([])
     const [loadingAddresses, setLoadingAddresses] = useState(false)
+    const [activeSection, setActiveSection] = useState('profile')
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -162,6 +166,78 @@ export default function Profile() {
         })
     }
 
+    const handleImageUpload = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file')
+            return
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image size should be less than 5MB')
+            return
+        }
+
+        setUploadingImage(true)
+        const loadingToast = toast.loading('Uploading image...')
+
+        try {
+            // Convert image to base64
+            const reader = new FileReader()
+            reader.readAsDataURL(file)
+            
+            reader.onload = async () => {
+                try {
+                    const base64Image = reader.result
+                    const token = localStorage.getItem('token')
+
+                    // Update user profile with new image
+                    const response = await fetch('/api/user/profile', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-user-email': user.email,
+                            ...(token && { 'Authorization': `Bearer ${token}` })
+                        },
+                        body: JSON.stringify({
+                            email: user.email,
+                            image: base64Image
+                        })
+                    })
+
+                    if (!response.ok) throw new Error('Upload failed')
+
+                    const data = await response.json()
+                    
+                    // Update user image in localStorage and state
+                    const updatedUser = { ...user, image: base64Image }
+                    localStorage.setItem('user', JSON.stringify(updatedUser))
+                    setUser(updatedUser)
+                    
+                    toast.success('Profile image updated!', { id: loadingToast })
+                    setUploadingImage(false)
+                } catch (error) {
+                    console.error('Error uploading image:', error)
+                    toast.error('Failed to upload image', { id: loadingToast })
+                    setUploadingImage(false)
+                }
+            }
+
+            reader.onerror = () => {
+                toast.error('Failed to read image', { id: loadingToast })
+                setUploadingImage(false)
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error)
+            toast.error('Failed to upload image', { id: loadingToast })
+            setUploadingImage(false)
+        }
+    }
+
     const handleSave = async () => {
         setLoading(true)
         try {
@@ -245,8 +321,23 @@ export default function Profile() {
                                     <User className="w-12 h-12 text-white" />
                                 )}
                             </div>
-                            <button className="absolute bottom-0 right-0 p-2 bg-white rounded-full text-red-500 shadow-lg hover:scale-110 transition-transform">
-                                <Camera className="w-4 h-4" />
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="hidden"
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingImage}
+                                className="absolute bottom-0 right-0 p-2 bg-white rounded-full text-red-500 shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {uploadingImage ? (
+                                    <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <Camera className="w-4 h-4" />
+                                )}
                             </button>
                         </div>
                         <div className="text-center sm:text-left">
@@ -286,6 +377,47 @@ export default function Profile() {
                     ))}
                 </motion.div>
 
+                {/* Section Tabs */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="flex gap-2 mb-6 overflow-x-auto pb-2"
+                >
+                    <button
+                        onClick={() => setActiveSection('profile')}
+                        className={`px-6 py-3 rounded-xl font-medium transition whitespace-nowrap ${
+                            activeSection === 'profile'
+                                ? 'bg-red-500 text-white shadow-lg'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                    >
+                        Profile Information
+                    </button>
+                    <button
+                        onClick={() => setActiveSection('reviews')}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition whitespace-nowrap ${
+                            activeSection === 'reviews'
+                                ? 'bg-red-500 text-white shadow-lg'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                    >
+                        <Star size={18} />
+                        My Reviews
+                    </button>
+                </motion.div>
+
+                {/* Conditional Content */}
+                {activeSection === 'reviews' ? (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <MyReviews />
+                    </motion.div>
+                ) : (
+                <>
                 {/* Profile Form */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -693,6 +825,9 @@ export default function Profile() {
                         Logout
                     </button>
                 </motion.div>
+                </>
+                )}
+
             </div>
 
             {/* Address Form Modal with Location Picker */}

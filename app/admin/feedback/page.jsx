@@ -6,7 +6,8 @@ import { toast } from 'react-hot-toast'
 
 const FEEDBACK_TYPES = {
   product: 'Product Reviews',
-  app: 'App Reviews'
+  app: 'App Reviews',
+  complaint: 'Complaints'
 }
 
 const SORT_OPTIONS = [
@@ -189,36 +190,57 @@ export default function FeedbackPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    {/* Title and Rating */}
+                    {/* Title and Rating (or Subject for complaints) */}
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-semibold text-slate-900 dark:text-white truncate">
-                        {feedback.title}
+                        {feedback.subject || feedback.title || 'No Title'}
                       </h3>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={16}
-                            className={i < feedback.rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300 dark:text-slate-600'}
-                          />
-                        ))}
-                      </div>
+                      {feedback.rating && (
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              size={16}
+                              className={i < feedback.rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300 dark:text-slate-600'}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {feedback.priority && (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          feedback.priority === 'urgent' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                          feedback.priority === 'high' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                          'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                        }`}>
+                          {feedback.priority.toUpperCase()}
+                        </span>
+                      )}
                     </div>
 
                     {/* User Info */}
                     <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                      {feedback.userName ? feedback.userName : 'Anonymous'} • {feedback.userEmail}
+                      {feedback.userName ? feedback.userName : 'Anonymous'} {feedback.userEmail && `• ${feedback.userEmail}`}
                     </p>
 
-                    {/* Message Preview */}
+                    {/* Message/Description Preview */}
                     <p className="text-slate-700 dark:text-slate-300 line-clamp-2 text-sm">
-                      {feedback.message}
+                      {feedback.description || feedback.message}
                     </p>
 
-                    {/* Product Info (if product review) */}
+                    {/* Additional Info */}
                     {feedback.productName && (
                       <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
                         📦 Product: {feedback.productName}
+                      </p>
+                    )}
+                    {feedback.orderNumber && (
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+                        🛒 Order: {feedback.orderNumber}
+                      </p>
+                    )}
+                    {feedback.category && (
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+                        🏷️ Category: {feedback.category}
                       </p>
                     )}
                   </div>
@@ -293,23 +315,36 @@ export default function FeedbackPage() {
 
               {/* Content */}
               <div className="p-6 space-y-6">
-                {/* Title and Rating */}
+                {/* Title/Subject and Rating */}
                 <div>
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
-                    {selectedFeedback.title}
+                    {selectedFeedback.subject || selectedFeedback.title || 'No Title'}
                   </h3>
-                  <div className="flex items-center gap-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={20}
-                        className={i < selectedFeedback.rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300 dark:text-slate-600'}
-                      />
-                    ))}
-                    <span className="ml-2 text-lg font-semibold text-slate-700 dark:text-slate-300">
-                      {selectedFeedback.rating}/5
-                    </span>
-                  </div>
+                  {selectedFeedback.rating && (
+                    <div className="flex items-center gap-2">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          size={20}
+                          className={i < selectedFeedback.rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300 dark:text-slate-600'}
+                        />
+                      ))}
+                      <span className="ml-2 text-lg font-semibold text-slate-700 dark:text-slate-300">
+                        {selectedFeedback.rating}/5
+                      </span>
+                    </div>
+                  )}
+                  {selectedFeedback.priority && (
+                    <div className="mt-2">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        selectedFeedback.priority === 'urgent' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                        selectedFeedback.priority === 'high' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                        'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      }`}>
+                        Priority: {selectedFeedback.priority.toUpperCase()}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* User Info */}
@@ -317,28 +352,91 @@ export default function FeedbackPage() {
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                     <strong>User:</strong> {selectedFeedback.userName || 'Anonymous'}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                    <strong>Email:</strong> {selectedFeedback.userEmail}
-                  </p>
+                  {selectedFeedback.userEmail && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+                      <strong>Email:</strong> {selectedFeedback.userEmail}
+                    </p>
+                  )}
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    <strong>Type:</strong> {FEEDBACK_TYPES[selectedFeedback.feedbackType]}
+                    <strong>Type:</strong> {FEEDBACK_TYPES[selectedFeedback.feedbackType] || selectedFeedback.feedbackType}
                   </p>
                   {selectedFeedback.productName && (
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
                       <strong>Product:</strong> {selectedFeedback.productName}
                     </p>
                   )}
+                  {selectedFeedback.orderNumber && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                      <strong>Order:</strong> {selectedFeedback.orderNumber}
+                    </p>
+                  )}
+                  {selectedFeedback.category && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                      <strong>Category:</strong> {selectedFeedback.category}
+                    </p>
+                  )}
                 </div>
 
-                {/* Message */}
+                {/* Message/Description */}
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
-                    Feedback Message
+                    {selectedFeedback.feedbackType === 'complaint' ? 'Complaint Description' : 'Feedback Message'}
                   </h4>
                   <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                    {selectedFeedback.message}
+                    {selectedFeedback.description || selectedFeedback.message}
                   </p>
                 </div>
+
+                {/* Complaint Images */}
+                {selectedFeedback.images && selectedFeedback.images.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
+                      {selectedFeedback.feedbackType === 'complaint' ? 'Attached Images' : 'Review Images'}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedFeedback.images.map((img, idx) => (
+                        <img 
+                          key={idx} 
+                          src={img} 
+                          alt={`${selectedFeedback.feedbackType === 'complaint' ? 'Complaint' : 'Review'} image ${idx + 1}`}
+                          className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90 transition"
+                          onClick={() => window.open(img, '_blank')}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Videos (for reviews) */}
+                {selectedFeedback.videos && selectedFeedback.videos.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
+                      Review Videos
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedFeedback.videos.map((vid, idx) => (
+                        <video 
+                          key={idx} 
+                          src={vid} 
+                          className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                          controls
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resolution (for complaints) */}
+                {selectedFeedback.resolution && (
+                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                    <h4 className="font-semibold text-green-900 dark:text-green-200 mb-2">
+                      Resolution
+                    </h4>
+                    <p className="text-green-800 dark:text-green-300 whitespace-pre-wrap">
+                      {selectedFeedback.resolution}
+                    </p>
+                  </div>
+                )}
 
                 {/* Status and Actions */}
                 <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
