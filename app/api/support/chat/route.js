@@ -104,110 +104,151 @@ NO ORDER SELECTED: Customer is asking a general question or has not selected an 
 
         prompt += `\nCUSTOMER'S MESSAGE: ${userMessage}
 
-TICKET/COMPLAINT CREATION:
-When a customer wants to raise a complaint or ticket, follow this MULTI-STEP PROCESS:
+TICKET/COMPLAINT CREATION - AUTO-DETECT AND CREATE:
 
-STEP 1 - INITIAL REQUEST DETECTION:
-If customer says any of these phrases:
-- "raise a complaint" / "file a complaint" / "I want to complain"
-- "create a ticket" / "raise a ticket" / "escalate this issue"
-- "report this problem" / "I have a complaint"
+**AUTO-CREATE TICKET** for these situations:
+1. Customer explicitly asks: "raise complaint", "file ticket", "escalate", "report issue"
+2. Customer describes order problems: damaged, wrong item, not delivered, defective, broken
+3. Customer expresses dissatisfaction: "bad experience", "disappointed", "not satisfied"
+4. Customer reports product/service issues with details
 
-DO NOT create ticket immediately. Instead, ask clarifying questions:
-- What exactly is the issue? (be specific)
-- Have you tried any troubleshooting steps?
-- Do you have photos or videos of the issue? (for product defects, damage, wrong items)
+**TICKET CREATION - IMMEDIATE ACTION:**
+When ANY issue is reported, respond with:
+TICKET_REQUEST: [1-2 sentence summary of the issue]
 
-STEP 2 - GATHER INFORMATION:
-Based on the issue type, ask for relevant evidence:
-- **Damaged/Defective Product**: Request photos showing the damage/defect
-- **Wrong Item**: Request photos of the item received vs. what was ordered
-- **Delivery Issues**: Ask for delivery tracking details
-- **Quality Issues**: Request photos/videos showing the problem
+**AUTOMATIC TICKET EXAMPLES:**
 
-ENCOURAGE FILE UPLOADS:
-"Please upload photos/videos using the attachment buttons below to help us process your complaint faster."
+User: "My product arrived damaged"
+You: "I sincerely apologize for receiving a damaged product. I'm creating a complaint ticket immediately for our team to resolve this.
 
-STEP 3 - CREATE TICKET:
-Only AFTER gathering information and if customer has provided details, respond with:
-"TICKET_REQUEST: [detailed summary of the issue including all provided information]"
+TICKET_REQUEST: Damaged product received"
 
-IMPORTANT: 
-- DO NOT create ticket on first mention
-- ALWAYS ask clarifying questions first
-- ALWAYS encourage photo/video uploads for physical product issues
-- Only create ticket after customer confirms they want to proceed with all details collected
+User: "Order not delivered yet, very late"
+You: "I understand your concern about the delayed delivery. Let me escalate this to our team right away.
 
-RESPONSE GUIDELINES:
-1. Be warm, professional, and empathetic
-2. Address the customer by acknowledging their concern
-3. Provide specific, actionable solutions
-4. For complaints: Apologize sincerely, explain what happened, offer resolution
-5. For tracking: Explain current status and next steps with timeline
-6. For returns/refunds: Explain process, timeline, and requirements
-7. For cancellations: Check if possible, process if allowed, explain refund
-8. For technical issues: Provide troubleshooting steps or escalate
-9. Always offer additional help at the end
-10. Keep responses concise but complete (2-4 paragraphs max)
-11. Use exact order details provided - never fabricate information
-12. If you don't have information, be honest and offer to escalate
-13. **BEFORE creating ticket, ALWAYS ask if they have photos/videos for visual issues**
-14. **Remind customers they can upload files using the 📷 image and 🎥 video buttons**
-15. Only create ticket after gathering sufficient information
+TICKET_REQUEST: Order delivery delayed beyond expected timeframe"
+
+User: "Wrong item sent, I ordered something else"
+You: "I apologize for the wrong item delivery. Creating a complaint ticket now to fix this immediately.
+
+TICKET_REQUEST: Wrong item delivered - incorrect product sent"
+
+**RESPONSE AFTER TICKET CREATION:**
+The system will automatically append:
+- ✅ Ticket ID
+- 🔗 Tracking link
+- Email for further details: crashkart.help@gmail.com
+- Team follow-up message
+
+**WHEN NOT TO CREATE TICKET:**
+- Simple tracking questions (just answer with order status)
+- Product browsing/shopping questions (just answer)
+- General policy questions (just answer)
+
+**YOUR RESPONSE STRUCTURE:**
+1. Empathize with the issue (1 sentence)
+2. State you're creating ticket immediately (1 sentence)
+3. Add: TICKET_REQUEST: [issue summary]
+
+Keep it brief - system will add all ticket details, email, and next steps automatically!
 
 Provide your response now:`
 
-        // Call OpenRouter AI
-        const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
-                'X-Title': 'CrashKart Support'
-            },
-            body: JSON.stringify({
-                model: 'meta-llama/llama-3.2-3b-instruct:free',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are Inquirae, a senior customer support specialist at CrashKart with 5+ years experience. You handle all customer inquiries with professionalism, empathy, and efficiency. You follow company policies strictly and always prioritize customer satisfaction while being honest about limitations. When greeting customers or introducing yourself, mention that you are Inquirae, CrashKart\'s AI support assistant. IMPORTANT: CrashKart was designed and developed by Fahad Khan. If customers ask about the developer, creator, or who built the platform, tell them it was designed and developed by Fahad Khan.'
-                    },
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ],
-                temperature: 0.7,
-                max_tokens: 600
-            })
-        })
+        // Free OpenRouter models with vision + text capabilities and fallback
+        const freeModels = [
+            process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free', // Primary from env
+            'google/gemini-2.0-flash-exp:free', // Google Gemini - best vision + text
+            'meta-llama/llama-3.2-11b-vision-instruct:free', // Llama 3.2 Vision
+            'google/gemini-flash-1.5:free', // Gemini Flash - fast vision
+            'qwen/qwen-2-vl-7b-instruct:free', // Qwen VL - vision capable
+        ];
 
-        if (!aiResponse.ok) {
-            const errorText = await aiResponse.text()
-            console.error('OpenRouter API error:', aiResponse.status, errorText)
-            throw new Error(`AI service error: ${aiResponse.status}`)
+        let aiResponse = null;
+        let lastError = null;
+        
+        // Try each model until one works
+        for (const model of freeModels) {
+            try {
+                console.log(`🤖 Trying model: ${model}`);
+                
+                aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
+                        'X-Title': 'CrashKart Support'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are Inquirae, a senior customer support specialist at CrashKart with 5+ years experience. You handle all customer inquiries with professionalism, empathy, and efficiency. You follow company policies strictly and always prioritize customer satisfaction while being honest about limitations. When greeting customers or introducing yourself, mention that you are Inquirae, CrashKart\'s AI support assistant. IMPORTANT: CrashKart was designed and developed by Fahad Khan. If customers ask about the developer, creator, or who built the platform, tell them it was designed and developed by Fahad Khan.'
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 600
+                    })
+                });
+
+                if (aiResponse.ok) {
+                    console.log(`✅ Model ${model} responded successfully`);
+                    break; // Success! Use this response
+                } else {
+                    const errorText = await aiResponse.text();
+                    lastError = `${model}: ${aiResponse.status} - ${errorText}`;
+                    console.warn(`⚠️ Model ${model} failed:`, aiResponse.status, errorText);
+                    
+                    // If rate limited, try next model immediately
+                    if (aiResponse.status === 429) {
+                        continue;
+                    }
+                }
+            } catch (error) {
+                lastError = `${model}: ${error.message}`;
+                console.warn(`⚠️ Model ${model} error:`, error.message);
+                continue; // Try next model
+            }
+        }
+
+        // If all models failed
+        if (!aiResponse || !aiResponse.ok) {
+            console.error('❌ All AI models failed. Last error:', lastError);
+            throw new Error(`AI service unavailable. Please try again shortly.`);
         }
 
         const aiData = await aiResponse.json()
         let response = aiData.choices[0]?.message?.content || 'I apologize, but I am having trouble processing your request. Please try again or contact our support team directly.'
 
-        // Check if AI detected ticket/complaint request
+        // Check if AI detected ticket/complaint request OR if user explicitly wants to raise complaint/ticket
         let ticketInfo = null
-        if (response.includes('TICKET_REQUEST:')) {
+        const shouldCreateTicket = response.includes('TICKET_REQUEST:') || 
+                                   userMessage.toLowerCase().match(/(?:raise|create|file|open)\s+(?:a\s+)?(?:complaint|ticket|request)/);
+        
+        if (shouldCreateTicket) {
             try {
                 // Extract the issue description
-                const issueMatch = response.match(/TICKET_REQUEST:\s*(.+)/i)
-                const issueDescription = issueMatch ? issueMatch[1].trim() : userMessage
+                let issueDescription = userMessage;
+                if (response.includes('TICKET_REQUEST:')) {
+                    const issueMatch = response.match(/TICKET_REQUEST:\s*(.+)/i)
+                    issueDescription = issueMatch ? issueMatch[1].trim() : userMessage
+                }
                 
                 console.log('🎫 Creating ticket/complaint:', {
                     hasOrder: !!orderDetails,
                     issueDescription: issueDescription.substring(0, 50),
-                    userId: user.id
+                    userId: user.id,
+                    filesCount: files?.length || 0
                 })
                 
-                // Determine category and create appropriate ticket
-                const category = orderDetails ? 'order-issue' : 'general'
+                // Build file attachments list
+                const attachmentsList = files?.length > 0 ? 
+                    `\n\nAttachments:\n${files.map((f, i) => `${i+1}. ${f.type} - ${f.name}`).join('\n')}` : '';
                 
                 if (orderDetails) {
                     // Create Complaint for order-related issues
@@ -216,7 +257,7 @@ Provide your response now:`
                             orderId: orderDetails.orderId,
                             userId: user.id,
                             subject: `Order Issue - ${orderDetails.orderId}`,
-                            description: `${issueDescription}\n\nOrder Details:\n- Total: ₹${orderDetails.total}\n- Status: ${orderDetails.status}\n- Date: ${new Date(orderDetails.date).toLocaleDateString()}`,
+                            description: `${issueDescription}\n\nOrder Details:\n- Order ID: ${orderDetails.orderId}\n- Total: ₹${orderDetails.total}\n- Status: ${orderDetails.status}\n- Date: ${new Date(orderDetails.date).toLocaleDateString()}${attachmentsList}`,
                             category: 'other', // Valid categories: return, refund, damaged, wrong-item, delivery, quality, other
                             status: 'open',
                             priority: 'normal',
@@ -226,10 +267,15 @@ Provide your response now:`
                     
                     console.log('✅ Complaint created successfully:', complaint.id)
                     
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                                   process.env.NEXT_PUBLIC_SITE_URL || 
+                                   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+                    
                     ticketInfo = {
                         type: 'complaint',
                         id: complaint.id,
-                        trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/complaints/${complaint.id}`,
+                        shortId: complaint.id.substring(0, 8).toUpperCase(),
+                        trackingUrl: `${baseUrl}/complaints/${complaint.id}`,
                         createdAt: complaint.createdAt
                     }
                 } else {
@@ -238,7 +284,7 @@ Provide your response now:`
                         data: {
                             userId: user.id,
                             subject: issueDescription.substring(0, 100),
-                            description: issueDescription,
+                            description: `${issueDescription}${attachmentsList}`,
                             category: 'other', // Valid categories: billing, product, delivery, other
                             status: 'open',
                             priority: 'normal'
@@ -247,21 +293,31 @@ Provide your response now:`
                     
                     console.log('✅ Support ticket created successfully:', ticket.id)
                     
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                                   process.env.NEXT_PUBLIC_SITE_URL || 
+                                   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+                    
                     ticketInfo = {
                         type: 'ticket',
                         id: ticket.id,
-                        trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/support/tickets/${ticket.id}`,
+                        shortId: ticket.id.substring(0, 8).toUpperCase(),
+                        trackingUrl: `${baseUrl}/support/tickets/${ticket.id}`,
                         createdAt: ticket.createdAt
                     }
                 }
                 
                 // Replace TICKET_REQUEST marker with actual ticket info
-                response = response.replace(/TICKET_REQUEST:.+/i, '').trim()
-                response += `\n\n✅ **Ticket Created Successfully!**\n\n📋 **Ticket ID:** ${ticketInfo.id.slice(-8).toUpperCase()}\n🔗 **Track your ${ticketInfo.type}:** ${ticketInfo.trackingUrl}\n⏰ **Created:** ${new Date(ticketInfo.createdAt).toLocaleString()}\n\nOur team will review your ${ticketInfo.type} within 24 hours. You'll receive email updates at each stage. You can track the status anytime using the link above.`
+                if (response.includes('TICKET_REQUEST:')) {
+                    response = response.replace(/TICKET_REQUEST:.+/i, '').trim()
+                }
+                
+                // Add ticket creation confirmation with detailed instructions
+                const filesInfo = files?.length > 0 ? `\n📎 **${files.length} file(s) attached** to your ${ticketInfo.type}` : '';
+                response += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ **${ticketInfo.type === 'complaint' ? 'COMPLAINT RAISED' : 'SUPPORT TICKET CREATED'}**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🎫 **Your Ticket ID:** ${ticketInfo.shortId}\n🔗 **Track Status:** ${ticketInfo.trackingUrl}\n⏰ **Raised:** ${new Date(ticketInfo.createdAt).toLocaleString()}${filesInfo}\n\n📧 **Send Further Details:**\nEmail: **crashkart.help@gmail.com**\nInclude Ticket ID: **${ticketInfo.shortId}** in subject\n\n👥 **What Happens Next:**\n• Our support team will contact you within 24 hours\n• You'll receive email updates at each stage\n• Team will ask for any additional details needed\n• We'll resolve your issue as quickly as possible\n\n💡 **Important:**\n• Use the tracking link above to check real-time status\n• Reply to our emails with any additional information\n• Keep your Ticket ID handy for reference\n\n🆘 **Need Urgent Help?**\n📞 Phone: 1800-987-6543\n📧 Email: crashkart.help@gmail.com\n\nThank you for reaching out. We're on it! 🚀`
                 
             } catch (ticketError) {
-                console.error('Error creating ticket:', ticketError)
-                response += '\n\nI encountered an issue creating your ticket. Please contact crashkart.help@gmail.com directly, and our team will assist you immediately.'
+                console.error('❌ Error creating ticket:', ticketError)
+                response += `\n\n⚠️ I encountered an issue creating your ticket. Please contact us directly:\n📧 Email: crashkart.help@gmail.com\n📞 Phone: 1800-987-6543\n\nOur team will assist you immediately!`
             }
         }
 

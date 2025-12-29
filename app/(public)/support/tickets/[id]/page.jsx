@@ -9,22 +9,29 @@ export default function TicketTrackingPage() {
     const router = useRouter()
     const [ticket, setTicket] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
 
     useEffect(() => {
-        fetchTicket()
-    }, [params.id])
+        if (params?.id) {
+            fetchTicket()
+        }
+    }, [params?.id])
 
     const fetchTicket = async () => {
         try {
+            console.log('🎫 Fetching ticket ID:', params.id)
             const res = await fetch(`/api/support/tickets/${params.id}`)
             const data = await res.json()
-            if (res.ok) {
+            console.log('🎫 Ticket API response:', res.status, data)
+            if (res.ok && data.ticket) {
                 setTicket(data.ticket)
             } else {
-                toast.error('Ticket not found')
+                setError(data.error || 'Ticket not found')
+                toast.error(data.error || 'Ticket not found')
             }
         } catch (error) {
-            console.error('Error fetching ticket:', error)
+            console.error('❌ Error fetching ticket:', error)
+            setError('Failed to load ticket')
             toast.error('Failed to load ticket')
         } finally {
             setLoading(false)

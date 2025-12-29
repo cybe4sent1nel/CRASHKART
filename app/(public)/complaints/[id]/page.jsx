@@ -9,22 +9,29 @@ export default function ComplaintTrackingPage() {
     const router = useRouter()
     const [complaint, setComplaint] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
 
     useEffect(() => {
-        fetchComplaint()
-    }, [params.id])
+        if (params?.id) {
+            fetchComplaint()
+        }
+    }, [params?.id])
 
     const fetchComplaint = async () => {
         try {
+            console.log('📋 Fetching complaint ID:', params.id)
             const res = await fetch(`/api/complaints/${params.id}`)
             const data = await res.json()
-            if (res.ok) {
+            console.log('📋 Complaint API response:', res.status, data)
+            if (res.ok && data.complaint) {
                 setComplaint(data.complaint)
             } else {
-                toast.error('Complaint not found')
+                setError(data.error || 'Complaint not found')
+                toast.error(data.error || 'Complaint not found')
             }
         } catch (error) {
-            console.error('Error fetching complaint:', error)
+            console.error('❌ Error fetching complaint:', error)
+            setError('Failed to load complaint')
             toast.error('Failed to load complaint')
         } finally {
             setLoading(false)

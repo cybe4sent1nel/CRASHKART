@@ -148,14 +148,26 @@ export default function SupportPage() {
 
     const handleImageUpload = (res) => {
         if (res.url) {
-            setUploadedFiles(prev => [...prev, { type: 'image', url: res.filePath, name: res.name }])
+            console.log('📸 Image uploaded:', res)
+            setUploadedFiles(prev => [...prev, { 
+                type: 'image', 
+                url: res.filePath || res.url, 
+                fullUrl: res.url, 
+                name: res.name 
+            }])
             toast.success('Image uploaded successfully')
         }
     }
 
     const handleVideoUpload = (res) => {
         if (res.url) {
-            setUploadedFiles(prev => [...prev, { type: 'video', url: res.filePath, name: res.name }])
+            console.log('🎥 Video uploaded:', res)
+            setUploadedFiles(prev => [...prev, { 
+                type: 'video', 
+                url: res.filePath || res.url, 
+                fullUrl: res.url, 
+                name: res.name 
+            }])
             toast.success('Video uploaded successfully')
         }
     }
@@ -437,13 +449,14 @@ export default function SupportPage() {
                                                 {message.files.map((file, idx) => (
                                                     <div key={idx} className="bg-black/10 rounded-lg p-2">
                                                         {file.type === 'image' ? (
-                                                            <IKImage
-                                                                urlEndpoint={urlEndpoint}
-                                                                path={file.url}
+                                                            <img
+                                                                src={file.fullUrl || `${urlEndpoint}${file.url}`}
                                                                 alt={file.name}
-                                                                width={200}
-                                                                height={200}
-                                                                className="rounded-lg"
+                                                                className="rounded-lg w-full max-w-[200px] h-auto"
+                                                                onError={(e) => {
+                                                                    console.error('Failed to load image:', file)
+                                                                    e.target.style.display = 'none'
+                                                                }}
                                                             />
                                                         ) : (
                                                             <div className="flex items-center gap-2">
@@ -486,13 +499,14 @@ export default function SupportPage() {
                                     {uploadedFiles.map((file, idx) => (
                                         <div key={idx} className="relative bg-white border-2 border-pink-300 rounded-lg p-2 flex-shrink-0 shadow-sm">
                                             {file.type === 'image' ? (
-                                                <IKImage
-                                                    urlEndpoint={urlEndpoint}
-                                                    path={file.url}
+                                                <img
+                                                    src={file.fullUrl || `${urlEndpoint}${file.url}`}
                                                     alt={file.name}
-                                                    width={80}
-                                                    height={80}
-                                                    className="rounded"
+                                                    className="rounded w-20 h-20 object-cover"
+                                                    onError={(e) => {
+                                                        console.error('Failed to load image preview:', file)
+                                                        e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Crect fill="%23f3f4f6" width="80" height="80"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%239ca3af" font-size="12"%3EImage%3C/text%3E%3C/svg%3E'
+                                                    }}
                                                 />
                                             ) : (
                                                 <div className="w-20 h-20 flex items-center justify-center bg-purple-50">
