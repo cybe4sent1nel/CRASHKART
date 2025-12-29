@@ -16,9 +16,10 @@ export default function Wishlist() {
     const router = useRouter()
     const [wishlist, setWishlist] = useState([])
     const [currency] = useState(() => process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹')
-    const wishlistItems = useSelector(state => state.wishlist?.items || [], (prev, next) => 
-        Array.isArray(prev) && Array.isArray(next) ? prev.length === next.length && prev.every((item, idx) => item?.id === next[idx]?.id) : prev === next
-    )
+    const wishlistItems = useSelector(state => {
+        const items = state.wishlist?.items
+        return Array.isArray(items) ? items : []
+    })
     const dispatch = useDispatch()
     
     // Bulk selection state
@@ -27,12 +28,18 @@ export default function Wishlist() {
 
     useEffect(() => {
         // Use Redux state first, fallback to localStorage
-        if (wishlistItems && wishlistItems.length > 0) {
+        if (Array.isArray(wishlistItems) && wishlistItems.length > 0) {
             setWishlist(wishlistItems)
         } else {
             const savedWishlist = localStorage.getItem('wishlist')
             if (savedWishlist) {
-                setWishlist(JSON.parse(savedWishlist))
+                try {
+                    const parsed = JSON.parse(savedWishlist)
+                    setWishlist(Array.isArray(parsed) ? parsed : [])
+                } catch (error) {
+                    console.error('Error parsing wishlist:', error)
+                    setWishlist([])
+                }
             }
         }
     }, [wishlistItems])

@@ -21,8 +21,11 @@ export default function Cart() {
     const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹';
     const router = useRouter();
     
-    const { cartItems } = useSelector(state => state.cart);
-    const products = useSelector(state => state.product.list);
+    const cartItems = useSelector(state => state.cart?.cartItems || {});
+    const products = useSelector(state => {
+        const list = state.product?.list
+        return Array.isArray(list) ? list : []
+    });
 
     const dispatch = useDispatch();
 
@@ -34,6 +37,13 @@ export default function Cart() {
     const createCartArray = () => {
         let totalPrice = 0;
         const cartArray = [];
+        
+        // Ensure cartItems is an object
+        if (!cartItems || typeof cartItems !== 'object') {
+            setCartArray([]);
+            setTotalPrice(0);
+            return;
+        }
         
         // Use products from Redux, fallback to allProductsData
         const productList = products && products.length > 0 ? products : allProductsData;
