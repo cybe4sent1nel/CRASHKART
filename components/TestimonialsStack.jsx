@@ -64,41 +64,33 @@ export function TestimonialsStack() {
                 const response = await fetch('/api/app-reviews?limit=10')
                 const data = await response.json()
                 
-                if (data.success && data.testimonials.length > 0) {
-                    // Fetch user profiles for real reviews only
-                    const testimonialsWithProfiles = await Promise.all(
-                        data.testimonials.map(async (t) => {
-                            // Try to get user profile image from API response or database
-                            let userImage = t.image // Check if image already in response
-                            
-                            if (!userImage) {
-                                try {
-                                    const profileResponse = await fetch(`/api/user/profile?email=${encodeURIComponent(t.email || '')}`)
-                                    if (profileResponse.ok) {
-                                        const profileData = await profileResponse.json()
-                                        userImage = profileData.image
-                                    }
-                                } catch (err) {
-                                    console.log('Could not fetch profile for', t.name)
-                                }
-                            }
-                            
-                            return {
-                                ...t,
-                                image: userImage || null // Keep null if no image, will show fallback avatar
-                            }
-                        })
-                    )
+                console.log('📱 Testimonials: API response:', data)
+                console.log('📱 Testimonials: Real reviews count:', data.testimonials?.length || 0)
+                
+                if (data.success && data.testimonials && data.testimonials.length > 0) {
+                    // Process real reviews
+                    const realReviews = data.testimonials.map((t) => ({
+                        id: t.id,
+                        name: t.name,
+                        role: t.role || 'Customer',
+                        text: t.text,
+                        rating: t.rating,
+                        image: t.image || null // Use image from API if available
+                    }))
+                    
+                    console.log('📱 Testimonials: Processed real reviews:', realReviews.length)
                     
                     // Merge dummy reviews (with asset images) with real reviews
-                    const allTestimonials = [...defaultTestimonials, ...testimonialsWithProfiles]
+                    const allTestimonials = [...defaultTestimonials, ...realReviews]
+                    console.log('📱 Testimonials: Total testimonials:', allTestimonials.length)
                     setTestimonials(allTestimonials)
                 } else {
                     // No real reviews yet, show only dummy reviews with asset images
+                    console.log('📱 Testimonials: No real reviews, showing only dummy reviews')
                     setTestimonials(defaultTestimonials)
                 }
             } catch (error) {
-                console.error('Error fetching reviews:', error)
+                console.error('❌ Error fetching reviews:', error)
                 // Keep default testimonials with asset images on error
                 setTestimonials(defaultTestimonials)
             } finally {

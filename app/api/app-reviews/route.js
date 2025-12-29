@@ -11,7 +11,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '10')
 
-    // Fetch approved app reviews from UserFeedback table with user profiles
+    // Fetch approved app reviews from UserFeedback table
     const appReviews = await prisma.userFeedback.findMany({
       where: {
         feedbackType: 'app',
@@ -30,35 +30,29 @@ export async function GET(request) {
         id: true,
         userName: true,
         userEmail: true,
+        userId: true,
         rating: true,
         message: true,
         title: true,
         isAnonymous: true,
-        createdAt: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            image: true
-          }
-        }
+        createdAt: true
       }
     })
 
-    // Transform reviews for testimonials with user images
+    // Fetch user images separately
     const testimonials = await Promise.all(appReviews.map(async review => {
       let userImage = null
       
-      // Try to get user image from relation or fetch by email
-      if (review.user?.image) {
-        userImage = review.user.image
-      } else if (review.userEmail) {
+      // Try to fetch user by email to get profile image
+      if (review.userEmail) {
         try {
           const user = await prisma.user.findUnique({
             where: { email: review.userEmail },
-            select: { image: true }
+            select: { image: true, name: true }
           })
-          userImage = user?.image
+          if (user) {
+            userImage = user.image
+          }
         } catch (err) {
           console.log('Could not fetch user image for', review.userEmail)
         }
@@ -66,7 +60,7 @@ export async function GET(request) {
       
       return {
         id: review.id,
-        name: review.isAnonymous ? 'Anonymous User' : (review.user?.name || review.userName),
+        name: review.isAnonymous ? 'Anonymous User' : review.userName,
         email: review.userEmail,
         role: 'Customer',
         text: review.message,
