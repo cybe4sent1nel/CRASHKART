@@ -121,24 +121,38 @@ export default function Profile() {
                                 const token = localStorage.getItem('token')
                                 const response = await fetch(`/api/user/addresses?id=${addressId}`, {
                                     method: 'DELETE',
-                headers: {
-                    'x-user-email': email,
-                    ...(token && { 'Authorization': `Bearer ${token}` })
-                }
-            })
+                                    headers: {
+                                        'x-user-email': email,
+                                        ...(token && { 'Authorization': `Bearer ${token}` })
+                                    }
+                                })
 
-            if (response.ok) {
-                toast.success('Address deleted successfully!')
-                // Refresh addresses list
-                fetchAddresses()
-            } else {
-                const error = await response.json()
-                toast.error(error.error || 'Failed to delete address')
-            }
-        } catch (error) {
-            console.error('Error deleting address:', error)
-            toast.error('Failed to delete address')
-        }
+                                if (response.ok) {
+                                    toast.success('Address deleted successfully!')
+                                    // Refresh addresses list
+                                    fetchAddresses()
+                                } else {
+                                    const error = await response.json()
+                                    toast.error(error.error || 'Failed to delete address')
+                                }
+                            } catch (error) {
+                                console.error('Error deleting address:', error)
+                                toast.error('Failed to delete address')
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                        Delete
+                    </button>
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ))
     }
 
     const handleChange = (e) => {
