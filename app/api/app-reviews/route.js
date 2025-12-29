@@ -11,7 +11,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '10')
 
-    // Fetch approved app reviews from UserFeedback table
+    // Fetch approved app reviews from UserFeedback table with user profiles
     const appReviews = await prisma.userFeedback.findMany({
       where: {
         feedbackType: 'app',
@@ -29,22 +29,51 @@ export async function GET(request) {
       select: {
         id: true,
         userName: true,
+        userEmail: true,
         rating: true,
         message: true,
         title: true,
         isAnonymous: true,
-        createdAt: true
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true
+          }
+        }
       }
     })
 
-    // Transform reviews for testimonials
-    const testimonials = appReviews.map(review => ({
-      id: review.id,
-      name: review.isAnonymous ? 'Anonymous User' : review.userName,
-      role: 'Customer',
-      text: review.message,
-      rating: review.rating,
-      date: review.createdAt.toISOString()
+    // Transform reviews for testimonials with user images
+    const testimonials = await Promise.all(appReviews.map(async review => {
+      let userImage = null
+      
+      // Try to get user image from relation or fetch by email
+      if (review.user?.image) {
+        userImage = review.user.image
+      } else if (review.userEmail) {
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: review.userEmail },
+            select: { image: true }
+          })
+          userImage = user?.image
+        } catch (err) {
+          console.log('Could not fetch user image for', review.userEmail)
+        }
+      }
+      
+      return {
+        id: review.id,
+        name: review.isAnonymous ? 'Anonymous User' : (review.user?.name || review.userName),
+        email: review.userEmail,
+        role: 'Customer',
+        text: review.message,
+        rating: review.rating,
+        date: review.createdAt.toISOString(),
+        image: userImage
+      }
     }))
 
     return NextResponse.json({

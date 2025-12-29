@@ -364,9 +364,17 @@ export default function ProductReviews({ productId }) {
                             <>
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gradient-to-br from-red-400 to-orange-400 rounded-full flex items-center justify-center text-white font-bold">
-                                            {review.user?.name?.charAt(0) || review.userName?.charAt(0) || 'U'}
-                                        </div>
+                                        {review.user?.image ? (
+                                            <img 
+                                                src={review.user.image}
+                                                alt={review.user?.name || 'User'}
+                                                className="w-10 h-10 rounded-full object-cover border-2 border-red-100"
+                                            />
+                                        ) : (
+                                            <div className="w-10 h-10 bg-gradient-to-br from-red-400 to-orange-400 rounded-full flex items-center justify-center text-white font-bold">
+                                                {review.user?.name?.charAt(0) || review.userName?.charAt(0) || 'U'}
+                                            </div>
+                                        )}
                                         <div>
                                             <p className="font-semibold text-slate-800">{review.user?.name || review.userName || 'Anonymous'}</p>
                                             <p className="text-xs text-slate-500">{new Date(review.createdAt || review.date).toLocaleDateString()}</p>

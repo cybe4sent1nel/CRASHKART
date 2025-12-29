@@ -10,28 +10,44 @@ const LottieAnimation = dynamic(() => import('./LottieAnimation'), { ssr: false 
 
 const defaultTestimonials = [
     {
-        id: 1,
+        id: 'dummy-1',
         name: 'Sarah Johnson',
         role: 'Customer',
-        text: 'Amazing quality products and super fast delivery! CrashKart has become my go-to for all electronics.',
+        text: 'Absolutely love CrashKart! 🎉 The app is super fast, easy to navigate, and has amazing deals. Delivery was quick and customer support is very responsive. Highly recommend!',
         rating: 5,
         image: assets.profile_pic1
     },
     {
-        id: 2,
+        id: 'dummy-2',
         name: 'Michael Chen',
         role: 'Customer',
-        text: 'Excellent customer service and the prices are unbeatable. Highly recommend CrashKart!',
+        text: 'Excellent customer service and the prices are unbeatable. The CrashCash rewards are a great bonus! Best shopping app I\'ve used. 💯',
         rating: 5,
         image: assets.profile_pic2
     },
     {
-        id: 3,
+        id: 'dummy-3',
         name: 'Emma Rodriguez',
         role: 'Customer',
-        text: 'Best shopping experience ever. The website is smooth and checkout is super quick.',
+        text: 'Best shopping experience ever! The interface is beautiful, checkout is seamless, and tracking orders is so easy. Keep up the great work! ⭐',
         rating: 5,
         image: assets.profile_pic3
+    },
+    {
+        id: 'dummy-4',
+        name: 'Rahul Verma',
+        role: 'Customer',
+        text: 'Really good app with lots of features. Product quality is excellent and delivery is always on time. Great variety of products! 👍',
+        rating: 4,
+        image: assets.profile_pic1
+    },
+    {
+        id: 'dummy-5',
+        name: 'Priya Singh',
+        role: 'Customer',
+        text: 'Very satisfied with my purchases! Good customer service and the app works smoothly. Love the flash sales and discounts! 😊',
+        rating: 5,
+        image: assets.profile_pic2
     }
 ]
 
@@ -41,7 +57,7 @@ export function TestimonialsStack() {
     const [testimonials, setTestimonials] = useState(defaultTestimonials)
     const [loading, setLoading] = useState(true)
 
-    // Fetch app reviews
+    // Fetch app reviews and merge with dummy reviews
     useEffect(() => {
         const fetchReviews = async () => {
             try {
@@ -49,16 +65,42 @@ export function TestimonialsStack() {
                 const data = await response.json()
                 
                 if (data.success && data.testimonials.length > 0) {
-                    // Add profile images to testimonials
-                    const testimonialsWithImages = data.testimonials.map((t, idx) => ({
-                        ...t,
-                        image: [assets.profile_pic1, assets.profile_pic2, assets.profile_pic3][idx % 3]
-                    }))
-                    setTestimonials(testimonialsWithImages)
+                    // Fetch user profiles for real reviews only
+                    const testimonialsWithProfiles = await Promise.all(
+                        data.testimonials.map(async (t) => {
+                            // Try to get user profile image from API response or database
+                            let userImage = t.image // Check if image already in response
+                            
+                            if (!userImage) {
+                                try {
+                                    const profileResponse = await fetch(`/api/user/profile?email=${encodeURIComponent(t.email || '')}`)
+                                    if (profileResponse.ok) {
+                                        const profileData = await profileResponse.json()
+                                        userImage = profileData.image
+                                    }
+                                } catch (err) {
+                                    console.log('Could not fetch profile for', t.name)
+                                }
+                            }
+                            
+                            return {
+                                ...t,
+                                image: userImage || null // Keep null if no image, will show fallback avatar
+                            }
+                        })
+                    )
+                    
+                    // Merge dummy reviews (with asset images) with real reviews
+                    const allTestimonials = [...defaultTestimonials, ...testimonialsWithProfiles]
+                    setTestimonials(allTestimonials)
+                } else {
+                    // No real reviews yet, show only dummy reviews with asset images
+                    setTestimonials(defaultTestimonials)
                 }
             } catch (error) {
                 console.error('Error fetching reviews:', error)
-                // Keep default testimonials on error
+                // Keep default testimonials with asset images on error
+                setTestimonials(defaultTestimonials)
             } finally {
                 setLoading(false)
             }
@@ -134,13 +176,19 @@ export function TestimonialsStack() {
                                     {/* Header */}
                                     <div className='flex items-start justify-between mb-4'>
                                         <div className='flex items-center gap-4'>
-                                            <Image
-                                                src={testimonial.image}
-                                                alt={testimonial.name}
-                                                width={60}
-                                                height={60}
-                                                className='rounded-full object-cover'
-                                            />
+                                            {testimonial.image ? (
+                                                <Image
+                                                    src={testimonial.image}
+                                                    alt={testimonial.name}
+                                                    width={60}
+                                                    height={60}
+                                                    className='rounded-full object-cover border-2 border-blue-200'
+                                                />
+                                            ) : (
+                                                <div className='w-15 h-15 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center text-white text-2xl font-bold border-2 border-blue-200'>
+                                                    {testimonial.name.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
                                             <div>
                                                 <h3 className='font-bold text-gray-900'>{testimonial.name}</h3>
                                                 <p className='text-sm text-gray-600'>{testimonial.role}</p>
