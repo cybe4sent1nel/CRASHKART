@@ -95,7 +95,7 @@ export default function FlashSalesPage() {
 
         const selectedProductIds = Object.keys(selectedProducts)
         if (selectedProductIds.length === 0) {
-            alert('Select at least one product')
+            toast.error('Select at least one product', { duration: 3000 })
             return
         }
 
@@ -121,36 +121,55 @@ export default function FlashSalesPage() {
             })
 
             if (response.ok) {
-                alert(editId ? 'Sale updated!' : 'Sale created!')
+                toast.success(editId ? '✅ Sale updated!' : '✅ Sale created!', { duration: 3000 })
                 fetchSales()
                 resetForm()
             } else {
-                alert('Error saving sale')
+                toast.error('Error saving sale', { duration: 3000 })
             }
         } catch (error) {
             console.error('Error:', error)
-            alert('Error saving sale')
+            toast.error('Error saving sale', { duration: 3000 })
         }
     }
 
     const handleDelete = async (saleId) => {
-        if (!confirm('Delete this flash sale?')) return
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <p className="font-semibold">Delete this flash sale?</p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            toast.dismiss(t.id)
+                            try {
+                                const response = await fetch(`/api/admin/flash-sales?id=${saleId}`, {
+                                    method: 'DELETE'
+                                })
 
-        try {
-            const response = await fetch(`/api/admin/flash-sales?id=${saleId}`, {
-                method: 'DELETE'
-            })
-
-            if (response.ok) {
-                alert('Sale deleted!')
-                fetchSales()
-            } else {
-                alert('Error deleting sale')
-            }
-        } catch (error) {
-            console.error('Error:', error)
-            alert('Error deleting sale')
-        }
+                                if (response.ok) {
+                                    toast.success('✅ Sale deleted!', { duration: 3000 })
+                                    fetchSales()
+                                } else {
+                                    toast.error('Error deleting sale', { duration: 3000 })
+                                }
+                            } catch (error) {
+                                console.error('Error:', error)
+                                toast.error('Error deleting sale', { duration: 3000 })
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium"
+                    >
+                        Delete
+                    </button>
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000 })
     }
 
     const handleEdit = (sale) => {

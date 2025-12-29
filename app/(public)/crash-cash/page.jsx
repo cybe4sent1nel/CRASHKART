@@ -84,46 +84,65 @@ export default function CrashCashPage() {
     }
 
     const deleteCrashCash = (code) => {
-         if (confirm('Are you sure you want to remove this Crash Cash?')) {
-             try {
-                 // Remove from order rewards if it's an order reward
-                 const orderRewards = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
-                 const updatedOrderRewards = orderRewards.filter(r => (r.orderId || 'ORDER-REWARD') !== code)
-                 localStorage.setItem('orderCrashCashRewards', JSON.stringify(updatedOrderRewards))
-                 
-                 // Remove from scratch rewards if it's a scratch reward
-                 const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
-                 const updatedScratchRewards = scratchRewards.filter(r => (r.code || 'SCRATCH-REWARD') !== code)
-                 localStorage.setItem('scratchCardRewards', JSON.stringify(updatedScratchRewards))
-                 
-                 // Update local state
-                 const updated = crashCashList.filter(item => item.code !== code)
-                 setCrashCashList(updated)
-                 
-                 // Recalculate balance using unified function
-                 const newBalance = updateCrashCashBalance()
-                 setTotalCrashCash(newBalance)
-                 
-                 // Recalculate expired
-                 let totalExpired = 0
-                 const now = new Date()
-                 updated.forEach(item => {
-                     if (item.expiryDate && new Date(item.expiryDate) < now) {
-                         totalExpired += item.amount || 0
-                     }
-                 })
-                 setExpiredCrashCash(totalExpired)
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <p className="font-semibold">Remove this Crash Cash?</p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => {
+                            toast.dismiss(t.id)
+                            try {
+                                // Remove from order rewards if it's an order reward
+                                const orderRewards = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
+                                const updatedOrderRewards = orderRewards.filter(r => (r.orderId || 'ORDER-REWARD') !== code)
+                                localStorage.setItem('orderCrashCashRewards', JSON.stringify(updatedOrderRewards))
+                                
+                                // Remove from scratch rewards if it's a scratch reward
+                                const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
+                                const updatedScratchRewards = scratchRewards.filter(r => (r.code || 'SCRATCH-REWARD') !== code)
+                                localStorage.setItem('scratchCardRewards', JSON.stringify(updatedScratchRewards))
+                                
+                                // Update local state
+                                const updated = crashCashList.filter(item => item.code !== code)
+                                setCrashCashList(updated)
+                                
+                                // Recalculate balance using unified function
+                                const newBalance = updateCrashCashBalance()
+                                setTotalCrashCash(newBalance)
+                                
+                                // Recalculate expired
+                                let totalExpired = 0
+                                const now = new Date()
+                                updated.forEach(item => {
+                                    if (item.expiryDate && new Date(item.expiryDate) < now) {
+                                        totalExpired += item.amount || 0
+                                    }
+                                })
+                                setExpiredCrashCash(totalExpired)
 
-                 toast.success('Crash Cash removed')
-                 
-                 // Dispatch event to update other components
-                 window.dispatchEvent(new CustomEvent('crashcash-update'))
-             } catch (error) {
-                 console.error('Error deleting crash cash:', error)
-                 toast.error('Failed to remove Crash Cash')
-             }
-         }
-     }
+                                toast.success('Crash Cash removed')
+                                
+                                // Dispatch event to update other components
+                                window.dispatchEvent(new CustomEvent('crashcash-update'))
+                            } catch (error) {
+                                console.error('Error deleting crash cash:', error)
+                                toast.error('Failed to remove Crash Cash')
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium"
+                    >
+                        Remove
+                    </button>
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000 })
+    }
 
     const isExpired = (expiryDate) => {
         return new Date(expiryDate) < new Date()

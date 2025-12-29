@@ -608,7 +608,7 @@ function PlaceOrderContent() {
                             } else {
                                 if (typeof navigator !== 'undefined' && navigator.clipboard) {
                                     navigator.clipboard.writeText(trackingLink)
-                                    alert('Tracking link copied to clipboard!')
+                                    toast.success('📋 Tracking link copied to clipboard!', { duration: 3000 })
                                 }
                             }
                         }}

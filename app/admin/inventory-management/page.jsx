@@ -53,11 +53,11 @@ export default function InventoryManagementPage() {
                 const updatedProduct = await response.json()
                 setProducts(products.map(p => p.id === productId ? updatedProduct : p))
                 setEditingId(null)
-                alert('Stock updated successfully')
+                toast.success('✅ Stock updated successfully', { duration: 3000 })
             }
         } catch (error) {
             console.error('Error updating stock:', error)
-            alert('Failed to update stock')
+            toast.error('Failed to update stock', { duration: 3000 })
         }
     }
 

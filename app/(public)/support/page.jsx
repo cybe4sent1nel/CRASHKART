@@ -117,6 +117,34 @@ export default function SupportPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
+    const resetChat = async () => {
+        if (!userEmail) return
+        
+        try {
+            // Clear messages in database
+            await fetch('/api/support/history', {
+                method: 'DELETE',
+                headers: { email: userEmail }
+            })
+            
+            // Reset local state
+            setMessages([{
+                id: Date.now(),
+                text: "Hello! I'm Inquirae, your CrashKart support assistant. I'm here to help you with your orders, complaints, or any queries.\n\n📝 **For Complaints:**\n• Select your order above\n• Describe the issue clearly\n• Upload photos/videos using the 📷 and 🎥 buttons below (highly recommended)\n\n💡 Having visual proof helps us resolve your issue faster!\n\nPlease select an order or type your message to get started!",
+                sender: 'bot',
+                timestamp: new Date()
+            }])
+            setSelectedOrder(null)
+            setUploadedFiles([])
+            setInputValue('')
+            
+            toast.success('Chat conversation reset')
+        } catch (error) {
+            console.error('Error resetting chat:', error)
+            toast.error('Failed to reset chat')
+        }
+    }
+
     useEffect(() => {
         scrollToBottom()
     }, [messages])
@@ -292,7 +320,14 @@ export default function SupportPage() {
                             <span>Back</span>
                         </button>
                         <h1 className="text-2xl font-bold text-slate-800">CrashKart Support</h1>
-                        <div className="w-20"></div> {/* Spacer */}
+                        <button
+                            onClick={resetChat}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-lg transition shadow-sm text-sm font-medium"
+                            title="Reset conversation"
+                        >
+                            <X size={16} />
+                            <span>Reset Chat</span>
+                        </button>
                     </div>
                 </div>
 

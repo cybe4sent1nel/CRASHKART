@@ -57,11 +57,11 @@ export default function ComplaintsAdminPage() {
                 setComplaints(complaints.map(c => c.id === updateModal.id ? data.complaint : c))
                 setUpdateModal(null)
                 setUpdateData({ status: '', priority: '', resolution: '' })
-                alert('Complaint updated successfully!')
+                toast.success('✅ Complaint updated successfully!', { duration: 3000 })
             }
         } catch (error) {
             console.error('Error updating complaint:', error)
-            alert('Failed to update complaint')
+            toast.error('Failed to update complaint', { duration: 3000 })
         }
     }
 

@@ -50,13 +50,24 @@
             width: 256px;
             height: 256px;
             margin: 0 auto 32px;
+            position: relative;
+        }
+
+        .animation-container.loading::after {
+            content: "Loading...";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            color: #94a3b8;
         }
 
         h1 {
             font-size: 36px;
-            color: #1e293b;
             margin-bottom: 8px;
             font-weight: 700;
+            color: #1e293b;
         }
 
         .subtitle {
@@ -69,12 +80,15 @@
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 32px;
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: shimmer 3s ease-in-out infinite;
+            min-height: 28px; /* Prevent layout shift */
         }
+
+        .color-1 { color: #667eea; }
+        .color-2 { color: #f093fb; }
+        .color-3 { color: #4facfe; }
+        .color-4 { color: #fa709a; }
+        .color-5 { color: #a8edea; }
+        .color-6 { color: #ff9a56; }
 
         .gradient-1 {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
@@ -250,8 +264,9 @@
         </div>
 
         <!-- Animation -->
-        <div class="animation-container">
+        <div class="animation-container" id="animationContainer">
             <lottie-player
+                id="lottiePlayer"
                 src="/no-connection.json"
                 background="transparent"
                 speed="1"
@@ -265,7 +280,7 @@
 
         <!-- Title -->
         <h1>No Internet Connection</h1>
-        <p id="wittyText" class="witty-text"></p>
+        <p id="wittyText" class="witty-text color-1">Trying to reconnect...</p>
 
         <!-- Troubleshooting Card -->
         <div class="troubleshooting">
@@ -296,48 +311,88 @@
     </div>
 
     <script>
-        // Array of witty lines with their gradient classes
+        // Select random witty line and color IMMEDIATELY (before DOM loads)
         const wittyLines = [
-            { text: "Looks like your WiFi went on vacation without you! 🏖️", gradient: "gradient-1" },
-            { text: "Your internet is playing hide and seek... and winning! 🙈", gradient: "gradient-2" },
-            { text: "Houston, we have a connection problem! 🚀", gradient: "gradient-3" },
-            { text: "The internet broke up with you... it's not you, it's them! 💔", gradient: "gradient-4" },
-            { text: "WiFi took a coffee break... it'll be back soon! ☕", gradient: "gradient-5" },
-            { text: "Oops! Your connection went ghost mode! 👻", gradient: "gradient-6" },
-            { text: "The internet is on a power nap... shhh! 😴", gradient: "gradient-1" },
-            { text: "Your WiFi is lost in the Bermuda Triangle! 🌊", gradient: "gradient-2" },
-            { text: "Connection timeout... more like connection take-out! 🍕", gradient: "gradient-3" },
-            { text: "The WiFi gods are not in your favor today! ⚡", gradient: "gradient-4" }
+            "Looks like your WiFi went on vacation without you! 🏖️",
+            "Your internet is playing hide and seek... and winning! 🙈",
+            "Houston, we have a connection problem! 🚀",
+            "The internet broke up with you... it's not you, it's them! 💔",
+            "WiFi took a coffee break... it'll be back soon! ☕",
+            "Oops! Your connection went ghost mode! 👻",
+            "The internet is on a power nap... shhh! 😴",
+            "Your WiFi is lost in the Bermuda Triangle! 🌊",
+            "Connection timeout... more like connection take-out! 🍕",
+            "The WiFi gods are not in your favor today! ⚡"
         ];
 
-        // Select random witty line on page load
-        const randomLine = wittyLines[Math.floor(Math.random() * wittyLines.length)];
-        const wittyTextElement = document.getElementById('wittyText');
-        wittyTextElement.textContent = randomLine.text;
-        wittyTextElement.classList.add(randomLine.gradient);
+        const colorClasses = [
+            "color-1", "color-2", "color-3", 
+            "color-4", "color-5", "color-6"
+        ];
+
+        // Apply random color to witty text immediately
+        (function() {
+            const randomColor = colorClasses[Math.floor(Math.random() * colorClasses.length)];
+            const randomLine = wittyLines[Math.floor(Math.random() * wittyLines.length)];
+            const wittyTextElement = document.getElementById('wittyText');
+            if (wittyTextElement) {
+                wittyTextElement.textContent = randomLine;
+                // Remove default color and add random one
+                wittyTextElement.className = 'witty-text';
+                wittyTextElement.classList.add(randomColor);
+            }
+        })();
 
         // Check if Lottie player loaded successfully
         document.addEventListener('DOMContentLoaded', () => {
-            const lottiePlayer = document.querySelector('lottie-player');
+            const lottiePlayer = document.getElementById('lottiePlayer');
+            const animationContainer = document.getElementById('animationContainer');
             
-            // If lottie-player isn't available after 3 seconds, show fallback
-            setTimeout(() => {
-                if (!lottiePlayer || !customElements.get('lottie-player')) {
-                    console.log('Lottie player not loaded, using fallback icon');
-                    const animationContainer = document.querySelector('.animation-container');
-                    if (animationContainer) {
-                        animationContainer.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 100%; height: 100%;">
-                                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-                                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-                                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-                                <line x1="12" y1="20" x2="12.01" y2="20"></line>
-                                <line x1="2" y1="2" x2="22" y2="22" stroke="#dc2626" stroke-width="2"></line>
-                            </svg>
-                        `;
-                    }
+            // Check for Lottie player availability
+            const checkLottiePlayer = () => {
+                if (lottiePlayer && customElements.get('lottie-player')) {
+                    console.log('Lottie player loaded successfully');
+                    // Listen for load/error events
+                    lottiePlayer.addEventListener('ready', () => {
+                        console.log('Lottie animation ready');
+                    });
+                    lottiePlayer.addEventListener('error', () => {
+                        console.error('Lottie animation failed to load, showing fallback');
+                        showFallbackIcon();
+                    });
+                } else {
+                    console.log('Lottie player not available, showing fallback icon');
+                    showFallbackIcon();
                 }
-            }, 3000);
+            };
+
+            // Show fallback WiFi icon if Lottie fails
+            const showFallbackIcon = () => {
+                if (animationContainer) {
+                    animationContainer.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 100%; height: 100%;">
+                            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                            <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                            <line x1="2" y1="2" x2="22" y2="22" stroke="#dc2626" stroke-width="2"></line>
+                        </svg>
+                    `;
+                }
+            };
+
+            // Wait for lottie-player custom element to be defined
+            if (customElements.get('lottie-player')) {
+                checkLottiePlayer();
+            } else {
+                // Wait for custom element to be defined, timeout after 2 seconds
+                Promise.race([
+                    customElements.whenDefined('lottie-player'),
+                    new Promise(resolve => setTimeout(resolve, 2000))
+                ]).then(() => {
+                    checkLottiePlayer();
+                });
+            }
         });
 
         // Auto-reload when connection is restored

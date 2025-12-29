@@ -60,35 +60,52 @@ function UnsubscribePageContent() {
     }
 
     const handleUnsubscribe = async () => {
-        if (!window.confirm('Are you sure you want to unsubscribe from all emails?')) {
-            return
-        }
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <p className="font-semibold">Unsubscribe from all emails?</p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            toast.dismiss(t.id)
+                            setLoading(true)
+                            setError('')
 
-        setLoading(true)
-        setError('')
+                            try {
+                                const response = await fetch('/api/email/unsubscribe', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ token })
+                                })
 
-        try {
-            const response = await fetch('/api/email/unsubscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token })
-            })
+                                const data = await response.json()
 
-            const data = await response.json()
+                                if (!response.ok) {
+                                    throw new Error(data.error || 'Failed to unsubscribe')
+                                }
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to unsubscribe')
-            }
-
-            setSuccess(true)
-            toast.success('You have been unsubscribed')
-            setTimeout(() => router.push('/'), 2000)
-        } catch (err) {
-            setError(err.message)
-            toast.error(err.message)
-        } finally {
-            setLoading(false)
-        }
+                                setSuccess(true)
+                                toast.success('You have been unsubscribed')
+                                setTimeout(() => router.push('/'), 2000)
+                            } catch (err) {
+                                setError(err.message)
+                                toast.error(err.message)
+                            } finally {
+                                setLoading(false)
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium"
+                    >
+                        Unsubscribe
+                    </button>
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000 })
     }
 
     if (success) {

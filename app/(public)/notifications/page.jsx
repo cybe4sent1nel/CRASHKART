@@ -105,8 +105,9 @@ export default function Notifications() {
             })
 
             if (response.ok) {
+                // Update all notifications to read in state
+                setNotifications(notifications.map(n => ({ ...n, isRead: true })))
                 toast.success('All notifications marked as read')
-                fetchNotifications()
             }
         } catch (error) {
             console.error('Failed to mark all as read:', error)
@@ -134,21 +135,40 @@ export default function Notifications() {
         const userId = getUserId()
         if (!userId) return
 
-        if (!confirm('Are you sure you want to delete all read notifications?')) return
-
-        try {
-            const response = await fetch(`/api/notifications?userId=${userId}&deleteAll=true`, {
-                method: 'DELETE',
-            })
-
-            if (response.ok) {
-                toast.success('All read notifications cleared')
-                fetchNotifications()
-            }
-        } catch (error) {
-            console.error('Failed to clear notifications:', error)
-            toast.error('Failed to clear notifications')
-        }
+        // Use toast confirm instead of browser confirm
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <p className="font-semibold">Delete all read notifications?</p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            toast.dismiss(t.id)
+                            try {
+                                const response = await fetch(`/api/notifications?userId=${userId}&deleteAll=true`, {
+                                    method: 'DELETE',
+                                })
+                                if (response.ok) {
+                                    toast.success('All read notifications cleared')
+                                    fetchNotifications()
+                                }
+                            } catch (error) {
+                                console.error('Failed to clear notifications:', error)
+                                toast.error('Failed to clear notifications')
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium"
+                    >
+                        Delete
+                    </button>
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000 })
     }
 
     const handleNotificationClick = (notification) => {

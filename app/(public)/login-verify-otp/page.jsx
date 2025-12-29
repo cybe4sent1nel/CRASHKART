@@ -82,7 +82,7 @@ export default function LoginVerifyOTP() {
          window.dispatchEvent(new Event('storage'));
          window.dispatchEvent(new Event('profileUpdated'));
 
-         alert('Successfully logged in!')
+         toast.success('🎉 Successfully logged in!', { duration: 3000 })
          router.push('/')
     }
 
@@ -96,9 +96,9 @@ export default function LoginVerifyOTP() {
         setVerificationOTP(newOTP)
 
         if (otpType === 'email') {
-            alert(`New OTP sent to ${identifier}: ${newOTP}`)
+            toast.success(`New OTP sent to ${identifier}: ${newOTP}`, { duration: 5000 })
         } else {
-            alert(`New OTP sent to WhatsApp: +91${identifier}\nOTP: ${newOTP}`)
+            toast.success(`New OTP sent to WhatsApp: +91${identifier}\nOTP: ${newOTP}`, { duration: 5000 })
         }
     }
 

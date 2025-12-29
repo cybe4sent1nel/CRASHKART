@@ -30,11 +30,11 @@ export default function Login() {
   }
 
   const handleChooseMobile = () => {
-    setStep('mobile')
-    setIdentifier('')
-    setPassword('')
-    setError('')
-    setMethod('whatsapp')
+    toast.error('🚧 WhatsApp login is under development. Please use Email login instead.', {
+      duration: 4000,
+      icon: '⚠️'
+    })
+    // Don't change method, keep user on email flow
   }
 
   const handleEmailLogin = async (e) => {

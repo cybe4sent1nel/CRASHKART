@@ -550,19 +550,38 @@ export default function MyOrders() {
             }))
             setReturnModal(null)
             setReturnReason('')
-            alert('Return/Exchange request submitted successfully. Our team will contact you within 24 hours.')
+            toast.success('✅ Return/Exchange request submitted successfully. Our team will contact you within 24 hours.', { duration: 5000 })
         }
     }
 
     const handleCancelOrder = (orderId) => {
-        if (window.confirm('Are you sure you want to cancel this order?')) {
-            setOrders(prevOrders =>
-                prevOrders.map(order =>
-                    order.id === orderId ? { ...order, status: 'Cancelled' } : order
-                )
-            )
-            alert('Order cancelled successfully. A refund will be processed within 5-7 business days.')
-        }
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <p className="font-semibold">Cancel this order?</p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => {
+                            toast.dismiss(t.id)
+                            setOrders(prevOrders =>
+                                prevOrders.map(order =>
+                                    order.id === orderId ? { ...order, status: 'Cancelled' } : order
+                                )
+                            )
+                            toast.success('✅ Order cancelled successfully. A refund will be processed within 5-7 business days.', { duration: 5000 })
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium"
+                    >
+                        Yes, Cancel
+                    </button>
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                    >
+                        No
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000 })
     }
 
     const handleShareOrder = (order) => {
@@ -578,7 +597,7 @@ export default function MyOrders() {
         } else {
             // Fallback: copy to clipboard
             navigator.clipboard.writeText(trackingLink)
-            alert('Tracking link copied to clipboard!')
+            toast.success('📋 Tracking link copied to clipboard!', { duration: 3000 })
         }
     }
 

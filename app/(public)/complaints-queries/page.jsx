@@ -206,7 +206,7 @@ export default function ComplaintsQueriesPage() {
                                 <button
                                     onClick={() => {
                                         if (!selectedOrderId) {
-                                            alert('Please select an order first')
+                                            toast.error('Please select an order first', { duration: 3000 })
                                             return
                                         }
                                         setShowComplaintModal(true)

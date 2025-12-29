@@ -103,7 +103,7 @@ const OrderSummary = ({ totalPrice, items }) => {
         } catch (error) {
             console.error('Order creation error:', error);
             setShowPaymentProcessing(false);
-            alert('Failed to create order: ' + error.message);
+            toast.error('Failed to create order: ' + error.message, { duration: 5000 });
             return;
         }
 
@@ -240,7 +240,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                              } else {
                                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
                                      navigator.clipboard.writeText(trackingLink)
-                                     alert('Tracking link copied to clipboard!')
+                                     toast.success('📋 Tracking link copied to clipboard!', { duration: 3000 })
                                  }
                              }
                          }}

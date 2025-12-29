@@ -304,10 +304,11 @@ export default function Signup() {
   }
 
   const handleChooseMobile = () => {
-    setStep('mobile')
-    setFormData({ identifier: '', name: '' })
-    setError('')
-    setMethod('whatsapp')
+    toast.error('🚧 WhatsApp signup is under development. Please use Email signup instead.', {
+      duration: 4000,
+      icon: '⚠️'
+    })
+    // Don't change method, keep user on email flow
   }
 
   useEffect(() => {

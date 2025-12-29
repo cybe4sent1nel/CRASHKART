@@ -74,7 +74,7 @@ export default function VerifyOTP() {
          window.dispatchEvent(new Event('storage'));
          window.dispatchEvent(new Event('profileUpdated'));
 
-         alert('Account created successfully! Welcome to CrashKart!')
+         toast.success('🎉 Account created successfully! Welcome to CrashKart!', { duration: 4000 })
          router.push('/')
     }
 
@@ -87,9 +87,9 @@ export default function VerifyOTP() {
         setError('')
 
         if (otpType === 'email') {
-            alert(`New OTP sent to ${signupData.email}: ${newOTP}`)
+            toast.success(`New OTP sent to ${signupData.email}: ${newOTP}`, { duration: 5000 })
         } else {
-            alert(`New OTP sent to WhatsApp: +91${signupData.phone}\nOTP: ${newOTP}`)
+            toast.success(`New OTP sent to WhatsApp: +91${signupData.phone}\nOTP: ${newOTP}`, { duration: 5000 })
         }
     }
 

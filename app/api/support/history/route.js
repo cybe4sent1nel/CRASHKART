@@ -67,3 +67,30 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Failed to save history' }, { status: 500 })
     }
 }
+
+// DELETE - Clear conversation history
+export async function DELETE(req) {
+    try {
+        const email = req.headers.get('email')
+        if (!email) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } })
+        if (!user) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        }
+
+        // Delete conversation history
+        await prisma.supportConversation.deleteMany({
+            where: { userId: user.id }
+        })
+
+        console.log('✅ Chat history cleared for user:', email)
+        return NextResponse.json({ success: true, message: 'Chat history cleared' })
+
+    } catch (error) {
+        console.error('Delete history error:', error)
+        return NextResponse.json({ error: 'Failed to clear history' }, { status: 500 })
+    }
+}

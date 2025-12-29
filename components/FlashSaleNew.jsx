@@ -179,7 +179,7 @@ const FlashSaleNew = () => {
         e.stopPropagation()
 
         if (product.quantity > 0) {
-            alert('This product is in stock!')
+            toast.success('✅ This product is in stock!', { duration: 3000 })
             return
         }
 

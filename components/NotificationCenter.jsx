@@ -29,7 +29,7 @@ export default function NotificationCenter() {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/notifications?userId=${userId}`);
+      const response = await fetch(`/api/notifications?userId=${userId}&unreadOnly=true`);
       const data = await response.json();
 
       if (data.success) {
@@ -73,11 +73,14 @@ export default function NotificationCenter() {
       });
 
       if (response.ok) {
+        // Immediately clear notifications and reset count
+        setNotifications([]);
+        setUnreadCount(0);
         toast.success('All notifications marked as read');
-        fetchNotifications();
       }
     } catch (error) {
       console.error('Failed to mark all as read:', error);
+      toast.error('Failed to mark all as read');
     }
   };
 

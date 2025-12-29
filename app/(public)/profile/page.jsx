@@ -101,23 +101,26 @@ export default function Profile() {
     }
 
     const handleDeleteAddress = async (addressId) => {
-        if (!confirm('Are you sure you want to delete this address?')) {
-            return
-        }
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <p className="font-semibold">Delete this address?</p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            toast.dismiss(t.id)
+                            try {
+                                const userData = localStorage.getItem('user')
+                                if (!userData) {
+                                    toast.error('Please login to delete address')
+                                    return
+                                }
 
-        try {
-            const userData = localStorage.getItem('user')
-            if (!userData) {
-                toast.error('Please login to delete address')
-                return
-            }
+                                const user = JSON.parse(userData)
+                                const email = user.email
 
-            const user = JSON.parse(userData)
-            const email = user.email
-
-            const token = localStorage.getItem('token')
-            const response = await fetch(`/api/user/addresses?id=${addressId}`, {
-                method: 'DELETE',
+                                const token = localStorage.getItem('token')
+                                const response = await fetch(`/api/user/addresses?id=${addressId}`, {
+                                    method: 'DELETE',
                 headers: {
                     'x-user-email': email,
                     ...(token && { 'Authorization': `Bearer ${token}` })
