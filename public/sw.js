@@ -1,5 +1,5 @@
 // Service Worker for CrashKart
-const CACHE_NAME = 'crashkart-offline-v3';
+const CACHE_NAME = 'crashkart-offline-v4';
 const OFFLINE_URL = '/offline.html';
 const LOTTIE_ANIMATION = '/no-connection.json';
 const LOTTIE_PLAYER = 'https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js';
