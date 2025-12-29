@@ -15,6 +15,39 @@ const AdminSidebar = () => {
     const [searchQuery, setSearchQuery] = useState('')
     const [showUserList, setShowUserList] = useState(false)
     const [loadingUsers, setLoadingUsers] = useState(false)
+    const [adminProfile, setAdminProfile] = useState({
+        name: 'Admin',
+        avatar: null
+    })
+
+    // Load admin profile from localStorage
+    useEffect(() => {
+        const loadProfile = () => {
+            const savedProfile = localStorage.getItem('adminProfile')
+            if (savedProfile) {
+                const profile = JSON.parse(savedProfile)
+                setAdminProfile({
+                    name: profile.name || 'Admin',
+                    avatar: profile.avatar || null
+                })
+            }
+        }
+        
+        loadProfile()
+        
+        // Listen for profile updates
+        const handleProfileUpdate = () => {
+            loadProfile()
+        }
+        
+        window.addEventListener('storage', handleProfileUpdate)
+        window.addEventListener('profileUpdated', handleProfileUpdate)
+        
+        return () => {
+            window.removeEventListener('storage', handleProfileUpdate)
+            window.removeEventListener('profileUpdated', handleProfileUpdate)
+        }
+    }, [])
 
     const sidebarLinks = [
         { name: 'Dashboard', href: '/admin', icon: HomeIcon, group: 'Main' },
@@ -96,16 +129,22 @@ const AdminSidebar = () => {
             {/* Admin Profile Section */}
             <div className="flex flex-col gap-3 justify-center items-center pt-8 max-sm:hidden px-4">
                 <div className="relative">
-                    <Image
-                        src={assets.profile_pic1}
-                        alt="Profile"
-                        width={64}
-                        height={64}
-                        className="w-16 h-16 rounded-full border-4 border-red-100 object-cover"
-                    />
+                    {adminProfile.avatar ? (
+                        <img
+                            src={adminProfile.avatar}
+                            alt="Profile"
+                            className="w-16 h-16 rounded-full border-4 border-red-100 object-cover"
+                        />
+                    ) : (
+                        <div className="w-16 h-16 rounded-full border-4 border-red-100 bg-gradient-to-br from-red-200 to-red-300 flex items-center justify-center">
+                            <span className="text-white text-2xl font-bold">
+                                {adminProfile.name.charAt(0).toUpperCase()}
+                            </span>
+                        </div>
+                    )}
                     <img src="/logo.bmp" alt="CrashKart" className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full border-4 border-white bg-white" />
                 </div>
-                <p className="text-slate-700 font-semibold text-center">Hi, Admin</p>
+                <p className="text-slate-700 font-semibold text-center">Hi, {adminProfile.name}</p>
                 <Link href="/admin/profile" className="text-xs text-red-600 hover:text-red-700 font-medium mt-1">
                     Update Profile
                 </Link>
