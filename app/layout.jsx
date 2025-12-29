@@ -3,7 +3,6 @@ import { Toaster } from "react-hot-toast";
 import StoreProvider from "@/app/StoreProvider";
 import { SessionProvider } from "@/components/SessionProvider";
 import NavigationProgress from "@/components/NavigationProgress";
-import OfflineDetector from "@/components/OfflineDetector";
 import DarkModeScript from "@/components/DarkModeScript";
 import CookiePopup from "@/components/CookiePopup";
 import FeedbackPopup from "@/components/FeedbackPopup";
@@ -39,7 +38,6 @@ export default function RootLayout({ children }) {
                         <StoreProvider>
                             <Toaster />
                             <NavigationProgress />
-                            <OfflineDetector />
                             <CookiePopup />
                             <FeedbackPopup />
                             {children}

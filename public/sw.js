@@ -1,5 +1,5 @@
 // Service Worker for CrashKart
-const CACHE_NAME = 'crashkart-offline-v2';
+const CACHE_NAME = 'crashkart-offline-v3';
 const OFFLINE_URL = '/offline.html';
 const LOTTIE_ANIMATION = '/no-connection.json';
 const LOTTIE_PLAYER = 'https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js';
@@ -43,25 +43,41 @@ self.addEventListener('fetch', (event) => {
     // Handle navigation requests (page loads)
     if (event.request.mode === 'navigate') {
         event.respondWith(
-            fetch(event.request).catch(() => {
-                // If fetch fails, serve the offline page
-                return caches.match(OFFLINE_URL);
+            fetch(event.request).catch((error) => {
+                // Only serve offline page if the user is actually offline
+                // Check if it's a network error (not a 404 or other HTTP error)
+                if (!navigator.onLine || error.message.includes('Failed to fetch')) {
+                    return caches.match(OFFLINE_URL);
+                }
+                // For other errors (like 404, 500), let the error propagate
+                return new Response('Network error', {
+                    status: 408,
+                    headers: { 'Content-Type': 'text/plain' }
+                });
             })
         );
     } 
     // Handle requests for offline resources (animation, lottie player)
     else if (
         event.request.url.includes('no-connection.json') ||
-        event.request.url.includes('lottie-player')
+        event.request.url.includes('lottie-player') ||
+        event.request.url.includes('/animations/')
     ) {
         event.respondWith(
             caches.match(event.request).then((response) => {
+                // Return cached version or fetch from network
                 return response || fetch(event.request).then((fetchResponse) => {
-                    // Cache the resource for future offline use
-                    return caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, fetchResponse.clone());
-                        return fetchResponse;
-                    });
+                    // Cache the resource for future use
+                    if (fetchResponse.ok) {
+                        return caches.open(CACHE_NAME).then((cache) => {
+                            cache.put(event.request, fetchResponse.clone());
+                            return fetchResponse;
+                        });
+                    }
+                    return fetchResponse;
+                }).catch(() => {
+                    // If offline and not in cache, return empty response
+                    return new Response('', { status: 408 });
                 });
             })
         );
