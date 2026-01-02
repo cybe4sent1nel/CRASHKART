@@ -5,14 +5,6 @@
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/cron/email-triggers?token=ck_cron_5e1b9c3a7d4f0e2c8b6a1f7d3c9e5a0b",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/check-inactive-users?token=ck_cron_5e1b9c3a7d4f0e2c8b6a1f7d3c9e5a0b",
-      "schedule": "30 3 * * *"
-    },
-    {
       "path": "/api/cron?task=all&token=ck_cron_5e1b9c3a7d4f0e2c8b6a1f7d3c9e5a0b",
       "schedule": "0 4 * * *"
     }
