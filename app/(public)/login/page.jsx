@@ -307,7 +307,7 @@ export default function Login() {
       setLoading(true)
       // Redirect to Google OAuth
       const redirectUri = `${window.location.origin}/auth/callback/google`
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '501082196293-jkoqi4u1807eq4dgdbnct7ndakc3thkg.apps.googleusercontent.com'
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
       const scope = 'openid email profile'
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`
       window.location.href = googleAuthUrl

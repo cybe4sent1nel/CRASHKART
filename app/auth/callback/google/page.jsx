@@ -26,31 +26,19 @@ function GoogleCallbackContent() {
             }
 
             try {
-                // Exchange code for tokens
-                const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+                // Exchange code for tokens via server-side API (keeps client_secret secure)
+                const tokenResponse = await fetch('/api/auth/google/callback', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        code,
-                        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-                        client_secret: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_SECRET,
-                        redirect_uri: `${window.location.origin}/auth/callback/google`,
-                        grant_type: 'authorization_code'
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
                 })
-
-                const tokens = await tokenResponse.json()
 
                 if (!tokenResponse.ok) {
-                    throw new Error(tokens.error_description || 'Failed to exchange code')
+                    const error = await tokenResponse.json()
+                    throw new Error(error.error || 'Failed to exchange code for tokens')
                 }
 
-                // Get user info
-                const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-                    headers: { Authorization: `Bearer ${tokens.access_token}` }
-                })
-
-                const userInfo = await userInfoResponse.json()
+                const { user: userInfo, accessToken } = await tokenResponse.json()
 
                 // Send to your backend
                 const response = await fetch('/api/auth/google', {
