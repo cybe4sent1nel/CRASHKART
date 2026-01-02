@@ -1,6 +1,25 @@
-import NextAuth from "next-auth"
-import { authOptions } from "@/lib/auth"
+// Force dynamic rendering to prevent build-time initialization
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+export const fetchCache = 'force-no-store'
 
-const handler = NextAuth(authOptions)
+let handler = null
 
-export { handler as GET, handler as POST }
+async function getHandler() {
+    if (!handler) {
+        const NextAuth = (await import("next-auth")).default
+        const { authOptions } = await import("@/lib/auth")
+        handler = NextAuth(authOptions)
+    }
+    return handler
+}
+
+export async function GET(req, ctx) {
+    const h = await getHandler()
+    return h(req, ctx)
+}
+
+export async function POST(req, ctx) {
+    const h = await getHandler()
+    return h(req, ctx)
+}
