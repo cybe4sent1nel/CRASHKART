@@ -1,17 +1,23 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const revalidate = false
 
-// Lazy load to prevent build-time execution
+let handler
+
 export async function GET(req, ctx) {
-    const NextAuth = (await import("next-auth")).default
-    const { authOptions } = await import("@/lib/auth")
-    const handler = NextAuth(authOptions)
-    return await handler(req, ctx)
+    if (!handler) {
+        const NextAuth = (await import("next-auth")).default
+        const { authOptions } = await import("@/lib/auth")
+        handler = NextAuth(authOptions)
+    }
+    return handler(req, ctx)
 }
 
 export async function POST(req, ctx) {
-    const NextAuth = (await import("next-auth")).default
-    const { authOptions } = await import("@/lib/auth")
-    const handler = NextAuth(authOptions)
-    return await handler(req, ctx)
+    if (!handler) {
+        const NextAuth = (await import("next-auth")).default
+        const { authOptions } = await import("@/lib/auth")
+        handler = NextAuth(authOptions)
+    }
+    return handler(req, ctx)
 }
