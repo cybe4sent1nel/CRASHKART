@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 
 async function getHandler() {
   const NextAuth = (await import("next-auth")).default
-  const { authOptions } = await import("@/lib/auth")
+  const { getAuthOptions } = await import("@/lib/auth")
+  const authOptions = getAuthOptions()
   return NextAuth(authOptions)
 }
 
