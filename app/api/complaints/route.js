@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
 
         if (!session?.user?.email) {
             return NextResponse.json(

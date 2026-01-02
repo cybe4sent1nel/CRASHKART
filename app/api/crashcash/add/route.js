@@ -10,8 +10,8 @@ const prisma = new PrismaClient()
 
 export async function POST(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-console.log('\n🔵 /api/crashcash/add START')
+        const { authOptions } = await import('@/lib/auth');
+        console.log('\n🔵 /api/crashcash/add START');
         
         const session = await getServerSession(authOptions).catch(() => null)
         let user = null
@@ -23,9 +23,8 @@ console.log('\n🔵 /api/crashcash/add START')
 
         if (!user) {
             try {
-                        const { authOptions } = await import('@/lib/auth')
-console.log('🔵 No session, trying token auth...')
-                const token = extractBearerToken(req)
+                console.log('🔵 No session, trying token auth...');
+                const token = extractBearerToken(req);
                 const { decoded } = await verifyUserToken(token)
                 console.log(`🔵 Token verified for user: ${decoded.userId}`)
                 user = await prisma.user.findUnique({ where: { id: decoded.userId } })

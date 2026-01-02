@@ -13,21 +13,20 @@ const prisma = new PrismaClient()
 
 export async function POST(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions).catch(() => null)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions).catch(() => null);
 
-        let user = null
+        let user = null;
 
         // First, try to resolve user from NextAuth session
         if (session?.user?.email) {
-            user = await prisma.user.findUnique({ where: { email: session.user.email } })
+            user = await prisma.user.findUnique({ where: { email: session.user.email } });
         }
 
         // If no NextAuth session, fall back to bearer token auth
         if (!user) {
             try {
-                        const { authOptions } = await import('@/lib/auth')
-const token = extractBearerToken(req)
+                const token = extractBearerToken(req);
                 const { decoded } = await verifyUserToken(token)
                 user = await prisma.user.findUnique({ where: { id: decoded.userId } })
             } catch (authErr) {

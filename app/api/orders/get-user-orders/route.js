@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-;
 import { jwtVerify } from 'jose';
 
 // Prevent Next.js from attempting to pre-render this route
@@ -18,8 +17,8 @@ export async function POST(request) {
 
 async function handleOrdersRequest(request) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-let userEmail = null;
+        const { authOptions } = await import('@/lib/auth');
+        let userEmail = null;
         let userId = null;
 
         // First try: Get user from NextAuth session
@@ -34,8 +33,7 @@ let userEmail = null;
             if (authHeader?.startsWith('Bearer ')) {
                 const token = authHeader.substring(7);
                 try {
-                            const { authOptions } = await import('@/lib/auth')
-const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'your-secret-key');
+                    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'your-secret-key');
                     const verified = await jwtVerify(token, secret);
                     userEmail = verified.payload.email;
                 } catch (err) {
@@ -47,8 +45,7 @@ const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'your-sec
         // Third try: Get user from localStorage data sent in request (fallback for frontend)
         if (!userEmail) {
             try {
-                        const { authOptions } = await import('@/lib/auth')
-const body = await request.json().catch(() => ({}));
+                const body = await request.json().catch(() => ({}));
                 userEmail = body.email;
             } catch (e) {
                 // Ignore if no body

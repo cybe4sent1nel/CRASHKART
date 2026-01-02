@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 // GET - Fetch user's cart items
 export async function GET(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
         
         if (!session?.user?.email) {
             return Response.json(
@@ -51,8 +51,8 @@ const session = await getServerSession(authOptions)
 // POST - Add item to cart
 export async function POST(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
         
         if (!session?.user?.email) {
             return Response.json(
@@ -118,8 +118,8 @@ const session = await getServerSession(authOptions)
 // DELETE - Remove item from cart
 export async function DELETE(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
         
         if (!session?.user?.email) {
             return Response.json(

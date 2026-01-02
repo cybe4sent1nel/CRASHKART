@@ -84,11 +84,10 @@ export async function POST(req) {
 
         // If no NextAuth session, check for Bearer token (localStorage OTP login)
         if (!user && authHeader?.startsWith('Bearer ')) {
-            const token = authHeader.slice(7)
-            console.log('  Token Length:', token.length)
+            const token = authHeader.slice(7);
+            console.log('  Token Length:', token.length);
             try {
-                        const { authOptions } = await import('@/lib/auth')
-const verified = await verifyUserToken(token)
+                const verified = await verifyUserToken(token);
                 user = await prisma.user.findUnique({ where: { id: verified.user.id } }) || verified.user
                 userEmail = user.email
                 console.log('  ✅ JWT Verified via helper:', { email: userEmail, userId: user.id })
@@ -229,11 +228,10 @@ const verified = await verifyUserToken(token)
             )
             
             // Safely parse response: Cashfree may return HTML on errors (auth pages, proxy pages)
-            const rawText = await createOrderResponse.text()
-            let orderResult
+            const rawText = await createOrderResponse.text();
+            let orderResult;
             try {
-                        const { authOptions } = await import('@/lib/auth')
-orderResult = JSON.parse(rawText)
+                orderResult = JSON.parse(rawText);
             } catch (jsonErr) {
                 console.error('❌ Cashfree retry payment returned non-JSON response')
                 console.error('  Status:', createOrderResponse.status)
@@ -306,8 +304,7 @@ orderResult = JSON.parse(rawText)
                 addressId = userAddresses[0].id
             } else {
                 try {
-                            const { authOptions } = await import('@/lib/auth')
-const defaultAddress = await prisma.address.create({
+                    const defaultAddress = await prisma.address.create({
                         data: {
                             userId: user.id,
                             name: user.name || 'User',
@@ -357,8 +354,7 @@ const defaultAddress = await prisma.address.create({
                     storeId = firstStore.id
                 } else {
                     try {
-                                const { authOptions } = await import('@/lib/auth')
-const defaultStore = await prisma.store.create({
+                        const defaultStore = await prisma.store.create({
                             data: {
                                 userId: user.id,
                                 name: 'Default Store',
@@ -415,8 +411,7 @@ const defaultStore = await prisma.store.create({
         
         // Check for duplicate orders before creating new one
         try {
-                    const { authOptions } = await import('@/lib/auth')
-const normalizedTotal = Number(Number(total).toFixed(2))
+            const normalizedTotal = Number(Number(total).toFixed(2));
             const dedupeStatuses = ['ORDER_PLACED', 'PAYMENT_PENDING', 'PROCESSING']
             const totalLower = normalizedTotal - 1
             const totalUpper = normalizedTotal + 1
@@ -613,8 +608,7 @@ const normalizedTotal = Number(Number(total).toFixed(2))
         
         for (let i = 0; i <= retries; i++) {
             try {
-                        const { authOptions } = await import('@/lib/auth')
-console.log(`🔄 Attempt ${i + 1}/${retries + 1}`)
+                console.log(`🔄 Attempt ${i + 1}/${retries + 1}`);
                 
                 const controller = new AbortController()
                 const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -667,11 +661,10 @@ console.log(`🔄 Attempt ${i + 1}/${retries + 1}`)
         }
 
         // Safely parse response: Cashfree may return HTML on errors (auth pages, proxy pages)
-        const rawText = await createOrderResponse.text()
-        let orderResult
+        const rawText = await createOrderResponse.text();
+        let orderResult;
         try {
-                    const { authOptions } = await import('@/lib/auth')
-orderResult = JSON.parse(rawText)
+            orderResult = JSON.parse(rawText);
         } catch (jsonErr) {
             console.error('❌ Cashfree returned non-JSON response')
             console.error('  Status:', createOrderResponse.status)

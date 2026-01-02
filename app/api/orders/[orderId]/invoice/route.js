@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req, { params }) {
   try {
-            const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+    const { authOptions } = await import('@/lib/auth');
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) return Response.json({ message: 'Unauthorized' }, { status: 401 })
 
     const resolvedParams = params || {}
@@ -38,10 +38,9 @@ const session = await getServerSession(authOptions)
     if (!isOwner && !userIsAdmin) return Response.json({ message: 'Forbidden' }, { status: 403 })
 
     // Parse notes (created at order creation) for stored subtotal/deliveryCharge/originalTotal
-    let notes = {}
+    let notes = {};
     try {
-              const { authOptions } = await import('@/lib/auth')
-notes = typeof order.notes === 'string' ? JSON.parse(order.notes) : (order.notes || {})
+      notes = typeof order.notes === 'string' ? JSON.parse(order.notes) : (order.notes || {});
     } catch (e) {
       notes = order.notes || {}
     }
@@ -53,10 +52,9 @@ notes = typeof order.notes === 'string' ? JSON.parse(order.notes) : (order.notes
     const platformFeeFromNotes = Number(notes.platformFee ?? 0)
 
     // Attempt to parse coupon JSON saved on the order (created as JSON string)
-    let savedCoupon = null
+    let savedCoupon = null;
     try {
-              const { authOptions } = await import('@/lib/auth')
-savedCoupon = typeof order.coupon === 'string' ? JSON.parse(order.coupon) : order.coupon
+      savedCoupon = typeof order.coupon === 'string' ? JSON.parse(order.coupon) : order.coupon;
     } catch (e) {
       savedCoupon = order.coupon || null
     }
@@ -95,8 +93,7 @@ savedCoupon = typeof order.coupon === 'string' ? JSON.parse(order.coupon) : orde
     const wantPdf = reqUrl.searchParams.get('download') === '1'
     if (wantPdf) {
       try {
-                const { authOptions } = await import('@/lib/auth')
-const mod = await import('@/lib/invoicePuppeteer')
+        const mod = await import('@/lib/invoicePuppeteer');
         const generateInvoicePdf = mod?.generateInvoicePdf || mod?.default?.generateInvoicePdf || mod?.default
         if (typeof generateInvoicePdf === 'function') {
           const pdfBuffer = await generateInvoicePdf(invoiceData, { type: 'order' })
@@ -114,10 +111,9 @@ const mod = await import('@/lib/invoicePuppeteer')
     }
 
     // Fallback: inline HTML invoice (use shared renderer)
-    let invoiceHTML = ''
+    let invoiceHTML = '';
     try {
-              const { authOptions } = await import('@/lib/auth')
-const rmod = await import('@/lib/invoiceHtml')
+      const rmod = await import('@/lib/invoiceHtml');
       if (rmod && typeof rmod.renderInvoiceHtml === 'function') {
         invoiceHTML = rmod.renderInvoiceHtml(invoiceData)
       } else {

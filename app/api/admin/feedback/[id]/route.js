@@ -120,8 +120,8 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-            const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+    const { authOptions } = await import('@/lib/auth');
+    const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
       return NextResponse.json(

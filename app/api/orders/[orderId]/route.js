@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req, { params }) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
         const { orderId } = params
 
         if (!orderId) {
@@ -60,10 +60,9 @@ const session = await getServerSession(authOptions)
         const discountAmount = Math.max(0, computedSubtotal - (order.total || 0))
 
         // Parse notes where delivery/fee breakdown may be stored
-        let notes = {}
+        let notes = {};
         try {
-                    const { authOptions } = await import('@/lib/auth')
-notes = JSON.parse(order.notes || '{}')
+            notes = JSON.parse(order.notes || '{}');
         } catch (e) {
             notes = {}
         }

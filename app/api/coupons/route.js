@@ -8,8 +8,8 @@ const prisma = new PrismaClient()
 // GET - Fetch user's available coupons or public coupons for a product
 export async function GET(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const { searchParams } = new URL(req.url)
+        const { authOptions } = await import('@/lib/auth');
+        const { searchParams } = new URL(req.url);
         const productId = searchParams.get('productId')
         const publicOnly = searchParams.get('public') === 'true'
         
@@ -99,8 +99,8 @@ const { searchParams } = new URL(req.url)
 // POST - Assign coupon to user or apply coupon code
 export async function POST(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
         
         if (!session?.user?.email) {
             return Response.json(
@@ -184,8 +184,8 @@ const session = await getServerSession(authOptions)
 // PATCH - Mark coupon as used
 export async function PATCH(req) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getServerSession(authOptions)
+        const { authOptions } = await import('@/lib/auth');
+        const session = await getServerSession(authOptions);
         
         if (!session?.user?.email) {
             return Response.json(
