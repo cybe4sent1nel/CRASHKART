@@ -7,8 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request) {
     try {
-                const { authOptions } = await import('@/lib/auth')
-const session = await getCurrentSession()
+                const session = await getCurrentSession()
 
         if (!session?.user?.email) {
             console.warn('No session or email found')
@@ -136,3 +135,4 @@ const session = await getCurrentSession()
         )
     }
 }
+

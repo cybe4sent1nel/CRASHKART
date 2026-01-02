@@ -13,7 +13,6 @@ const prisma = new PrismaClient();
 
 export async function PATCH(req, { params }) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         // Check admin authorization
@@ -24,7 +23,7 @@ export async function PATCH(req, { params }) {
             );
         }
 
-        const { orderId } = params;
+        const { orderId } = await params;
         const { status } = await req.json();
 
         if (!status) {
@@ -107,8 +106,7 @@ export async function PATCH(req, { params }) {
 
 export async function GET(req, { params }) {
     try {
-        const { authOptions } = await import('@/lib/auth');
-        const { orderId } = params;
+        const { orderId } = await params;
 
         const order = await prisma.order.findUnique({
             where: { id: orderId },

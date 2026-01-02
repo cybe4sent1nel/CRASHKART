@@ -8,7 +8,6 @@ const prisma = new PrismaClient()
 // GET - Fetch user's available coupons or public coupons for a product
 export async function GET(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const { searchParams } = new URL(req.url);
         const productId = searchParams.get('productId')
         const publicOnly = searchParams.get('public') === 'true'
@@ -99,7 +98,6 @@ export async function GET(req) {
 // POST - Assign coupon to user or apply coupon code
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         if (!session?.user?.email) {
@@ -184,7 +182,6 @@ export async function POST(req) {
 // PATCH - Mark coupon as used
 export async function PATCH(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         if (!session?.user?.email) {
@@ -242,4 +239,5 @@ export async function PATCH(req) {
         )
     }
 }
+
 

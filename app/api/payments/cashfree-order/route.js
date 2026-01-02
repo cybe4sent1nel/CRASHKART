@@ -62,7 +62,6 @@ const sanitizeUrl = (url) => {
 
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth')
         // Debug logging
         const authHeader = req.headers.get('authorization')
         console.log('🔍 Payment Auth Debug:')
@@ -757,3 +756,4 @@ export async function POST(req) {
         )
     }
 }
+

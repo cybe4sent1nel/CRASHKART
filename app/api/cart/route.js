@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic'
 // GET - Fetch user's cart items
 export async function GET(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         if (!session?.user?.email) {
@@ -51,7 +50,6 @@ export async function GET(req) {
 // POST - Add item to cart
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         if (!session?.user?.email) {
@@ -118,7 +116,6 @@ export async function POST(req) {
 // DELETE - Remove item from cart
 export async function DELETE(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         if (!session?.user?.email) {
@@ -170,4 +167,5 @@ export async function DELETE(req) {
         )
     }
 }
+
 

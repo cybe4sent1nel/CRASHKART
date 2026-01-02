@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
         
         if (!session?.user?.email) {
@@ -431,3 +430,4 @@ async function sendCustomerConfirmationEmail(data) {
 
     await transporter.sendMail(mailOptions)
 }
+

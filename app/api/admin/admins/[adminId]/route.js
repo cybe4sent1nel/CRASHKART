@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic'
 // DELETE - Remove an admin (admin only)
 export async function DELETE(request, { params }) {
   try {
-    const { authOptions } = await import('@/lib/auth')
     const session = await getCurrentSession()
     
     if (!session?.user?.email) {

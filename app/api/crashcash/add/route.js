@@ -10,7 +10,6 @@ const prisma = new PrismaClient()
 
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         console.log('\n🔵 /api/crashcash/add START');
         
         const session = await getCurrentSession()
@@ -89,3 +88,4 @@ export async function POST(req) {
         )
     }
 }
+

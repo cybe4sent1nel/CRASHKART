@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
 
         if (!session?.user?.email) {
@@ -53,3 +52,4 @@ export async function GET(request) {
         )
     }
 }
+

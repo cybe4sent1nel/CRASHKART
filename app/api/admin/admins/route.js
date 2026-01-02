@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic'
 // GET - List all admins (admin only)
 export async function GET(request) {
   try {
-    const { authOptions } = await import('@/lib/auth')
     const session = await getCurrentSession()
     
     if (!session?.user?.email) {
@@ -46,7 +45,6 @@ export async function GET(request) {
 // POST - Add a new admin (existing admin only)
 export async function POST(request) {
   try {
-    const { authOptions } = await import('@/lib/auth')
     const session = await getCurrentSession()
     
     if (!session?.user?.email) {
@@ -117,4 +115,5 @@ export async function POST(request) {
     )
   }
 }
+
 

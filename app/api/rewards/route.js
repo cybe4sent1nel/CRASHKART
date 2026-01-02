@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req) {
     try {
-        const { authOptions } = await import('@/lib/auth')
         // Get user session
         const authHeader = req.headers.get('authorization')
         let session = await getCurrentSession()
@@ -64,3 +63,4 @@ export async function GET(req) {
         )
     }
 }
+

@@ -117,8 +117,7 @@ export async function POST(req) {
             } else {
                 // Last resort: Create a default store
                 try {
-                            const { authOptions } = await import('@/lib/auth')
-const defaultStore = await prisma.store.create({
+                            const defaultStore = await prisma.store.create({
                         data: {
                             userId: user.id,
                             name: 'Default Store',
@@ -147,8 +146,7 @@ const defaultStore = await prisma.store.create({
         const path = await import('path')
         let adminChargesRaw = null
         try {
-                    const { authOptions } = await import('@/lib/auth')
-const raw = await fs.promises.readFile(path.join(process.cwd(), 'data', 'adminCharges.json'), 'utf8')
+                    const raw = await fs.promises.readFile(path.join(process.cwd(), 'data', 'adminCharges.json'), 'utf8')
             adminChargesRaw = JSON.parse(raw)
         } catch (e) {
             console.warn('Could not read admin charges, using defaults', e.message)
@@ -179,8 +177,7 @@ const raw = await fs.promises.readFile(path.join(process.cwd(), 'data', 'adminCh
         // Fetch canonical coupon definition from DB when possible to avoid trusting client-supplied coupon metadata
         let couponDef = null
         try {
-                    const { authOptions } = await import('@/lib/auth')
-if (applied && applied.code) {
+                    if (applied && applied.code) {
                 couponDef = await prisma.coupon.findUnique({ where: { code: applied.code } })
             }
         } catch (e) {
@@ -295,8 +292,7 @@ if (applied && applied.code) {
         let couponDiscount = 0
         if (applied && applied.code) {
             try {
-                        const { authOptions } = await import('@/lib/auth')
-const couponFromDb = couponDef || await prisma.coupon.findUnique({ where: { code: applied.code } })
+                        const couponFromDb = couponDef || await prisma.coupon.findUnique({ where: { code: applied.code } })
                 if (couponFromDb) {
                     const cType = couponFromDb.couponType || 'percentage'
                     if (cType === 'percentage') {
@@ -344,8 +340,7 @@ const couponFromDb = couponDef || await prisma.coupon.findUnique({ where: { code
 
         // Guard against duplicate order submissions (COD especially). Reuse an existing unpaid order with identical items/quantities/prices and total.
         try {
-                    const { authOptions } = await import('@/lib/auth')
-const normalizedTotal = Number(finalTotal.toFixed(2)) // ensure 2 decimal precision
+                    const normalizedTotal = Number(finalTotal.toFixed(2)) // ensure 2 decimal precision
             const dedupeStatuses = ['ORDER_PLACED', 'PAYMENT_PENDING', 'PROCESSING']
             const totalLower = normalizedTotal - 1 // allow ₹1 tolerance for rounding/fee jitter
             const totalUpper = normalizedTotal + 1
@@ -455,8 +450,7 @@ const normalizedTotal = Number(finalTotal.toFixed(2)) // ensure 2 decimal precis
                     updates.updatedAt = new Date()
                     
                     try {
-                                const { authOptions } = await import('@/lib/auth')
-await prisma.order.update({ where: { id: duplicate.id }, data: updates })
+                                await prisma.order.update({ where: { id: duplicate.id }, data: updates })
                         console.log(`✅ Updated duplicate order ${duplicate.id}: paymentMethod=${updates.paymentMethod || duplicate.paymentMethod}, status=${updates.status || duplicate.status}`)
                     } catch (pmErr) {
                         console.warn('Failed to update duplicate order metadata', pmErr.message)
@@ -464,8 +458,7 @@ await prisma.order.update({ where: { id: duplicate.id }, data: updates })
                 } else {
                     // Even if no updates needed, touch the updatedAt so it appears recently accessed
                     try {
-                                const { authOptions } = await import('@/lib/auth')
-await prisma.order.update({ 
+                                await prisma.order.update({ 
                             where: { id: duplicate.id }, 
                             data: { updatedAt: new Date() } 
                         })
@@ -479,8 +472,7 @@ await prisma.order.update({
                 
                 // 💰 Check if CrashCash was already awarded for this duplicate order
                 try {
-                            const { authOptions } = await import('@/lib/auth')
-const existingReward = await prisma.crashCashReward.findFirst({
+                            const existingReward = await prisma.crashCashReward.findFirst({
                         where: {
                             orderId: duplicate.id,
                             userId: user.id,
@@ -579,14 +571,12 @@ const existingReward = await prisma.crashCashReward.findFirst({
 
         // Decrement product stock and update flash-sale quantities where applicable
         try {
-                    const { authOptions } = await import('@/lib/auth')
-for (const oi of order.orderItems || []) {
+                    for (const oi of order.orderItems || []) {
                 const pid = oi.productId
                 const qty = Number(oi.quantity || 0)
                 const prod = productMap.get(pid)
                 try {
-                            const { authOptions } = await import('@/lib/auth')
-// Update product quantity and inStock flag
+                            // Update product quantity and inStock flag
                     const updateData = { quantity: { decrement: qty } }
                     if (typeof prod?.quantity === 'number') updateData.inStock = (prod.quantity - qty) > 0
                     await prisma.product.update({
@@ -599,8 +589,7 @@ for (const oi of order.orderItems || []) {
 
                 // If product was part of an active flash sale, decrement flash sale productQuantities and increment sold
                 try {
-                            const { authOptions } = await import('@/lib/auth')
-const sale = activeFlashSales.find(s => Array.isArray(s.products) && s.products.includes(pid))
+                            const sale = activeFlashSales.find(s => Array.isArray(s.products) && s.products.includes(pid))
                     if (sale) {
                         const pqObj = sale.productQuantities || {}
                         const currentPQ = (pqObj && pqObj[pid]) ? Number(pqObj[pid]) : Number(sale.maxQuantity || prod?.quantity || 0)
@@ -625,8 +614,7 @@ const sale = activeFlashSales.find(s => Array.isArray(s.products) && s.products.
         // If coupon was used, mark it as used
         if (appliedCoupon && appliedCoupon.code) {
             try {
-                        const { authOptions } = await import('@/lib/auth')
-// Fetch coupon definition to check per-user limits
+                        // Fetch coupon definition to check per-user limits
                 const couponDef = await prisma.coupon.findUnique({ where: { code: appliedCoupon.code } })
 
                 // Find user's coupon record
@@ -684,8 +672,7 @@ const sale = activeFlashSales.find(s => Array.isArray(s.products) && s.products.
 
         // Clear user's cart
         try {
-                    const { authOptions } = await import('@/lib/auth')
-await prisma.cartItem.deleteMany({
+                    await prisma.cartItem.deleteMany({
                 where: { userId: user.id }
             })
         } catch (err) {
@@ -710,8 +697,7 @@ await prisma.cartItem.deleteMany({
         // Add CrashCash to user's balance immediately (regardless of scratch card win/loss)
         let crashCashAdded = false
         try {
-                    const { authOptions } = await import('@/lib/auth')
-console.log(`💰 Calculating CrashCash: ${totalCrashCashEarned} for order ${order.id}`)
+                    console.log(`💰 Calculating CrashCash: ${totalCrashCashEarned} for order ${order.id}`)
             
             // ✅ Use unified storage to add CrashCash (prevents deadlocks)
             const result = await unifiedStorage.addCrashCash(
@@ -753,8 +739,7 @@ console.log(`💰 Calculating CrashCash: ${totalCrashCashEarned} for order ${ord
         // Send beautiful order placed email with invoice
         // Send for ALL payment methods: COD, Card, UPI, Net Banking
         try {
-                    const { authOptions } = await import('@/lib/auth')
-console.log(`📧 Sending order confirmation for payment method: ${paymentMethodEnum}`)
+                    console.log(`📧 Sending order confirmation for payment method: ${paymentMethodEnum}`)
             console.log(`📧 Preparing to send order confirmation email to ${user.email}`)
             
             // Prepare invoice/email data with full price breakdown
@@ -807,8 +792,7 @@ console.log(`📧 Sending order confirmation for payment method: ${paymentMethod
 
             console.log(`📄 Skipping invoice generation in dev; sending confirmation without PDF`)
             try {
-                        const { authOptions } = await import('@/lib/auth')
-await sendOrderConfirmationWithInvoice(
+                        await sendOrderConfirmationWithInvoice(
                     user.email,
                     {
                         orderId: completeOrder.id,
@@ -848,8 +832,7 @@ await sendOrderConfirmationWithInvoice(
 
         // Send order confirmation email with tracking link using automated trigger
         try {
-                    const { authOptions } = await import('@/lib/auth')
-const orderData = {
+                    const orderData = {
                 items: validatedItems.map(item => ({
                     name: item.name,
                     quantity: item.quantity,
@@ -893,3 +876,4 @@ const orderData = {
         )
     }
 }
+
