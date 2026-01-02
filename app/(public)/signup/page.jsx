@@ -581,9 +581,24 @@ export default function Signup() {
   const handleGoogleSignup = async () => {
     try {
       setLoading(true)
-      await signIn('google', { callbackUrl: '/' })
+      const result = await signIn('google', { 
+        callbackUrl: '/',
+        redirect: false 
+      })
+      
+      if (result?.error) {
+        toast.error('Google sign up failed: ' + result.error)
+        setError('Failed to sign up with Google. Please try again.')
+      } else if (result?.ok) {
+        toast.success('Signing up with Google...')
+        // Let NextAuth handle the redirect
+        window.location.href = result.url || '/'
+      }
     } catch (err) {
+      console.error('Google signup error:', err)
       toast.error(err.message || 'Failed to initiate Google signup')
+      setError('Google signup failed. Please try again.')
+    } finally {
       setLoading(false)
     }
   }

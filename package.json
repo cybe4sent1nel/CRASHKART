@@ -15,7 +15,8 @@
     "migrate:unified-storage": "node scripts/migrate-to-unified-storage.js",
     "prisma:generate": "prisma generate",
     "prisma:reset": "prisma migrate reset",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "check:google-oauth": "node scripts/check-google-oauth.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

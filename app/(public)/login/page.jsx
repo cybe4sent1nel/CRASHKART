@@ -305,9 +305,24 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true)
-      await signIn('google', { callbackUrl: '/' })
+      const result = await signIn('google', { 
+        callbackUrl: '/',
+        redirect: false 
+      })
+      
+      if (result?.error) {
+        toast.error('Google sign in failed: ' + result.error)
+        setError('Failed to sign in with Google. Please try again.')
+      } else if (result?.ok) {
+        toast.success('Signing in with Google...')
+        // Let NextAuth handle the redirect
+        window.location.href = result.url || '/'
+      }
     } catch (err) {
+      console.error('Google login error:', err)
       toast.error(err.message || 'Failed to initiate Google login')
+      setError('Google login failed. Please try again.')
+    } finally {
       setLoading(false)
     }
   }

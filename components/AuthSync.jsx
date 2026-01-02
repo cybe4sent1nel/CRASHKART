@@ -67,38 +67,37 @@ export default function AuthSync() {
                     isProfileSetup: true
                 }
 
-                // Ensure we have the real DB user (and token) for Google logins
+                // For Google logins, generate JWT token from session data
                 if (session.user.provider === 'google' || session.user.googleId) {
                     const googleId = session.user.googleId || session.user.id
+                    mergedUser = {
+                        ...mergedUser,
+                        id: session.user.id,
+                        provider: 'google',
+                        googleId,
+                        crashCashBalance: session.user.crashCashBalance || 0,
+                        isProfileSetup: session.user.isProfileSetup !== false
+                    }
+
+                    // Generate JWT token for API calls
                     try {
-                        const response = await fetch('/api/auth/google', {
+                        const tokenResponse = await fetch('/api/auth/generate-token', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                googleId,
-                                email: session.user.email,
-                                name: session.user.name,
-                                image: session.user.image
+                                userId: session.user.id,
+                                email: session.user.email
                             })
                         })
 
-                        if (response.ok) {
-                            const data = await response.json()
-                            mergedUser = {
-                                ...mergedUser,
-                                ...data.user,
-                                provider: 'google',
-                                googleId
+                        if (tokenResponse.ok) {
+                            const tokenData = await tokenResponse.json()
+                            if (tokenData.token) {
+                                localStorage.setItem('token', tokenData.token)
                             }
-
-                            if (data.token) {
-                                localStorage.setItem('token', data.token)
-                            }
-                        } else {
-                            console.error('Failed to sync Google user to backend:', response.status)
                         }
                     } catch (error) {
-                        console.error('Error syncing Google user to backend:', error)
+                        console.warn('Failed to generate JWT token:', error)
                     }
                 }
 
