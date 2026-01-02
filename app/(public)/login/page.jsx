@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Mail, Phone, Chrome, Loader, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Swal from 'sweetalert2'
+import { signIn } from 'next-auth/react'
 import NeonCheckbox from '@/components/NeonCheckbox'
 
 export default function Login() {
