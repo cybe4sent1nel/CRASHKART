@@ -62,8 +62,7 @@ export async function GET(request, { params }) {
 
 export async function PATCH(request, { params }) {
   try {
-    const { authOptions } = await import('@/lib/auth')
-    const session = await getServerSession(authOptions)
+    const session = await getCurrentSession()
     
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -120,8 +119,7 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const { authOptions } = await import('@/lib/auth');
-    const session = await getServerSession(authOptions);
+    const session = await getCurrentSession();
     
     if (!session?.user?.email) {
       return NextResponse.json(

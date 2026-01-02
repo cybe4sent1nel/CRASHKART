@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(

@@ -14,7 +14,7 @@ const prisma = new PrismaClient()
 export async function POST(req) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions).catch(() => null);
+        const session = await getCurrentSession();
 
         let user = null;
 

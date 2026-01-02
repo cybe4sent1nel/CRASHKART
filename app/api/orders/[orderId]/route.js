@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req, { params }) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         const { orderId } = params
 
         if (!orderId) {

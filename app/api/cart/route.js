@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(
@@ -52,7 +52,7 @@ export async function GET(req) {
 export async function POST(req) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(
@@ -119,7 +119,7 @@ export async function POST(req) {
 export async function DELETE(req) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(
@@ -170,3 +170,4 @@ export async function DELETE(req) {
         )
     }
 }
+

@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
 export async function PATCH(req, { params }) {
     try {
         const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         // Check admin authorization
         if (!session || !session.user?.email?.includes('@gmail.com')) {

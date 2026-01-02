@@ -70,7 +70,7 @@ export async function POST(req) {
         console.log('  JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not Set')
         
         // Get user session from NextAuth or Bearer token
-        let session = await getServerSession(authOptions)
+        let session = await getCurrentSession()
         let user = null
         let userEmail = session?.user?.email || null
         console.log('  NextAuth Session:', userEmail ? `Found: ${userEmail}` : 'Not found')

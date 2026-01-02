@@ -13,7 +13,7 @@ export async function POST(req) {
         const { authOptions } = await import('@/lib/auth');
         console.log('\n🔵 /api/crashcash/add START');
         
-        const session = await getServerSession(authOptions).catch(() => null)
+        const session = await getCurrentSession()
         let user = null
 
         if (session?.user?.email) {

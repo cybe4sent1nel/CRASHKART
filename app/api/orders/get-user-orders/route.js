@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getCurrentSession, getUserFromToken } from '@/lib/session';
 import { jwtVerify } from 'jose';
 
 // Prevent Next.js from attempting to pre-render this route
@@ -17,12 +17,11 @@ export async function POST(request) {
 
 async function handleOrdersRequest(request) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         let userEmail = null;
         let userId = null;
 
-        // First try: Get user from NextAuth session
-        const session = await getServerSession(authOptions);
+        // First try: Get user from session
+        const session = await getCurrentSession();
         if (session?.user?.email) {
             userEmail = session.user.email;
         }

@@ -10,7 +10,7 @@ export async function GET(req) {
         const { authOptions } = await import('@/lib/auth')
         // Get user session
         const authHeader = req.headers.get('authorization')
-        let session = await getServerSession(authOptions)
+        let session = await getCurrentSession()
         let userEmail = session?.user?.email
         let userId = null
 
