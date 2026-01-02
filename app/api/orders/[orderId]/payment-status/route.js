@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic'
 
 export async function PUT(req, { params }) {
     try {
-        // Next.js 15: params is already resolved
-        const resolvedParams = params
-        const orderId = resolvedParams.orderId
+        // Next.js 15: params needs to be awaited
+        const resolvedParams = await params;
+        const orderId = resolvedParams.orderId;
         
         const authHeader = req.headers.get('authorization')
         

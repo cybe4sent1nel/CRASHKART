@@ -16,7 +16,7 @@ const prisma = new PrismaClient();
  */
 export async function GET(request, { params }) {
   try {
-    const { orderId } = params;
+    const { orderId } = await params;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -94,7 +94,7 @@ export async function GET(request, { params }) {
  */
 export async function PATCH(request, { params }) {
   try {
-    const { orderId } = params;
+    const { orderId } = await params;
     const { status, trackingNumber, carrier, notes, sendNotification = true } = await request.json();
 
     if (!status) {

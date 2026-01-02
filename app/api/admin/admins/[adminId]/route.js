@@ -29,7 +29,7 @@ export async function DELETE(request, { params }) {
       )
     }
 
-    const { adminId } = params
+    const { adminId } = await params;
 
     // Check if admin exists
     const adminToDelete = await prisma.admin.findUnique({

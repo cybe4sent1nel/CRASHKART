@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request, { params }) {
     try {
-        const { orderId } = params
+        const { orderId } = await params;
         const { paymentIntentId } = await request.json()
 
         // Update order as paid

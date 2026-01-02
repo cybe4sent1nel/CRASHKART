@@ -6,7 +6,7 @@ const prisma = new PrismaClient()
 // PATCH /api/admin/coupons/[id] - Update coupon
 export async function PATCH(req, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
         const body = await req.json()
 
         const coupon = await prisma.coupon.update({
@@ -35,7 +35,7 @@ export async function PATCH(req, { params }) {
 // DELETE /api/admin/coupons/[id] - Delete coupon
 export async function DELETE(req, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
 
         await prisma.coupon.delete({
             where: { id }

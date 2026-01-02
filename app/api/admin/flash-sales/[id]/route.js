@@ -7,7 +7,7 @@ const prisma = new PrismaClient()
 // GET single flash sale
 export async function GET(request, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
         
         const flashSale = await prisma.flashSale.findUnique({
             where: { id }
@@ -39,7 +39,7 @@ export async function GET(request, { params }) {
 // UPDATE flash sale
 export async function PUT(request, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
         const body = await request.json()
         
         const {
@@ -80,7 +80,7 @@ export async function PUT(request, { params }) {
 // DELETE flash sale
 export async function DELETE(request, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
         
         await prisma.flashSale.delete({
             where: { id }

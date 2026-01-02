@@ -5,7 +5,7 @@ const prisma = new PrismaClient()
 // Update app feedback/review
 export async function PATCH(request, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
         const { rating, message } = await request.json()
 
         if (!id) {
@@ -43,7 +43,7 @@ export async function PATCH(request, { params }) {
 // Delete app feedback/review
 export async function DELETE(request, { params }) {
     try {
-        const { id } = params
+        const { id } = await params;
 
         if (!id) {
             return new Response(

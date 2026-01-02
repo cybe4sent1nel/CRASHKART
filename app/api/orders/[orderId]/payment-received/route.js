@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 
 export async function PUT(req, { params }) {
     try {
-        const resolvedParams = params
-        const orderId = resolvedParams.orderId
+        const resolvedParams = await params;
+        const orderId = resolvedParams.orderId;
 
         const authHeader = req.headers.get('authorization')
         let userId = null

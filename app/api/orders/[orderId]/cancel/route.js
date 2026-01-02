@@ -37,7 +37,7 @@ async function revokeOrderRewards({ orderId, userId }) {
 
 export async function POST(request, { params }) {
     try {
-        const { orderId } = params
+        const { orderId } = await params;
         const { reason } = await request.json()
 
         // Get order
