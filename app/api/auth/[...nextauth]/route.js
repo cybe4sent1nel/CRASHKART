@@ -1,29 +1,17 @@
-import NextAuth from "next-auth"
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-let handler
-
-async function getAuthOptions() {
+// Lazy load to prevent build-time execution
+export async function GET(req, ctx) {
+    const NextAuth = (await import("next-auth")).default
     const { authOptions } = await import("@/lib/auth")
-    return authOptions
+    const handler = NextAuth(authOptions)
+    return await handler(req, ctx)
 }
 
-async function GET(req, context) {
-    if (!handler) {
-        const options = await getAuthOptions()
-        handler = NextAuth(options)
-    }
-    return handler(req, context)
+export async function POST(req, ctx) {
+    const NextAuth = (await import("next-auth")).default
+    const { authOptions } = await import("@/lib/auth")
+    const handler = NextAuth(authOptions)
+    return await handler(req, ctx)
 }
-
-async function POST(req, context) {
-    if (!handler) {
-        const options = await getAuthOptions()
-        handler = NextAuth(options)
-    }
-    return handler(req, context)
-}
-
-export { GET, POST }
