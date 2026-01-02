@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
+import { getCurrentSession } from '@/lib/session'
 import { NextResponse } from 'next/server'
 
 // Prevent Next.js from attempting to pre-render this route

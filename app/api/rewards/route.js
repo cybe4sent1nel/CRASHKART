@@ -1,4 +1,4 @@
-import { getServerSession } from 'next-auth'
+import { getCurrentSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { verifyUserToken } from '@/lib/authTokens'
 

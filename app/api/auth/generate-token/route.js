@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { getCurrentSession } from '@/lib/session';
 import { generateUserToken } from '@/lib/authTokens';
 import { prisma } from '@/lib/prisma';
 

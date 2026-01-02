@@ -13,7 +13,7 @@
  * Use InternalPaymentWrapper component instead (which redirects to hosted checkout).
  */
 
-import { getServerSession } from 'next-auth'
+import { getCurrentSession } from '@/lib/session'
 // Prevent Next.js from attempting to pre-render this route
 export const dynamic = 'force-dynamic'
 

@@ -8,8 +8,7 @@ const prisma = new PrismaClient()
 // GET - Fetch user's scratch cards/rewards
 export async function GET(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(
@@ -50,8 +49,7 @@ export async function GET(req) {
 // POST - Create/reveal scratch card reward
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(
@@ -109,8 +107,7 @@ export async function POST(req) {
 // PATCH - Mark scratch card as used
 export async function PATCH(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
-        const session = await getServerSession(authOptions);
+        const session = await getCurrentSession();
         
         if (!session?.user?.email) {
             return Response.json(

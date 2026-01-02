@@ -3,7 +3,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
+import { getCurrentSession } from '@/lib/session';
 import { triggerOrderStatusEmail } from '@/lib/emailTriggerService';
 
 // Prevent Next.js from attempting to pre-render this route

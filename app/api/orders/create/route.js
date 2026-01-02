@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { getServerSession } from 'next-auth'
+import { getCurrentSession } from '@/lib/session'
 import { extractBearerToken, verifyUserToken } from '@/lib/authTokens'
 import { triggerOrderConfirmationEmail } from '@/lib/emailTriggerService'
 import { sendOrderPlacedEmail } from '@/lib/emailService'
@@ -13,12 +13,11 @@ const prisma = new PrismaClient()
 
 export async function POST(req) {
     try {
-        const { authOptions } = await import('@/lib/auth');
         const session = await getCurrentSession();
 
         let user = null;
 
-        // First, try to resolve user from NextAuth session
+        // First, try to resolve user from session
         if (session?.user?.email) {
             user = await prisma.user.findUnique({ where: { email: session.user.email } });
         }
