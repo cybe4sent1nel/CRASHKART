@@ -3,7 +3,6 @@ import { Toaster } from "react-hot-toast";
 import StoreProvider from "@/app/StoreProvider";
 import { SessionProvider } from "@/components/SessionProvider";
 import NavigationProgress from "@/components/NavigationProgress";
-import DarkModeScript from "@/components/DarkModeScript";
 import CookiePopup from "@/components/CookiePopup";
 import FeedbackPopup from "@/components/FeedbackPopup";
 import StyledComponentsRegistry from "@/lib/registry";
@@ -28,7 +27,6 @@ export default function RootLayout({ children }) {
     return (
         <html lang="en" suppressHydrationWarning>
             <head>
-                <DarkModeScript />
                 <script src="https://sdk.cashfree.com/js/v3/cashfree.js" defer></script>
                 <script src="/register-sw.js" defer></script>
             </head>

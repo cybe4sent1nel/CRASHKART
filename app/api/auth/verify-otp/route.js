@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
 import { sendWelcomeEmail } from '@/lib/email';
+import { generateUserToken } from '@/lib/authTokens';
+import { createCrashCashReward } from '@/lib/rewards';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -53,6 +54,8 @@ export async function POST(request) {
             data: { isUsed: true }
         });
 
+        const normalizedEmail = otpSession.method === 'email' ? otpSession.contact?.toLowerCase() : null
+
         // Get or create user with createdAt to check if new user
         let user = await client.user.findUnique({
             where: { id: userId },
@@ -68,17 +71,17 @@ export async function POST(request) {
             }
         });
 
-        // If user doesn't exist (signup flow), create them with welcome bonus
+        // If user doesn't exist (signup flow), create them then credit welcome bonus as reward
         if (!user) {
             user = await client.user.create({
                 data: {
                     id: userId,
-                    email: otpSession.method === 'email' ? otpSession.contact : null,
+                    email: normalizedEmail,
                     phone: otpSession.method === 'whatsapp' ? otpSession.contact : null,
                     name: '',
                     isProfileSetup: false,
                     loginMethod: otpSession.method === 'email' ? 'email' : 'whatsapp',
-                    crashCashBalance: 100 // Welcome bonus of 100 CrashCash
+                    crashCashBalance: 0
                 },
                 select: {
                     id: true,
@@ -92,6 +95,28 @@ export async function POST(request) {
                     crashCashBalance: true
                 }
             });
+
+            // Credit welcome bonus via reward so balance and rewards page stay in sync
+            try {
+                await createCrashCashReward({ userId: user.id, amount: 1000, source: 'welcome_bonus' })
+                // Refresh to include updated balance
+                user = await client.user.findUnique({
+                    where: { id: user.id },
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        phone: true,
+                        image: true,
+                        isProfileSetup: true,
+                        loginMethod: true,
+                        createdAt: true,
+                        crashCashBalance: true
+                    }
+                })
+            } catch (rewardError) {
+                console.error('Failed to credit welcome CrashCash (OTP):', rewardError)
+            }
         } else {
             // For existing users, fetch crashCashBalance
             user = await client.user.findUnique({
@@ -110,6 +135,9 @@ export async function POST(request) {
             });
         }
 
+        // Ensure sessionVersion exists for token generation even though the column is absent
+        user = { ...user, sessionVersion: 0 }
+
         // Check if user is new (created less than 1 minute ago)
         const isNewUser = user.createdAt && (Date.now() - new Date(user.createdAt).getTime()) < 60000;
 
@@ -125,15 +153,7 @@ export async function POST(request) {
         }
 
         // Generate JWT token
-        const token = jwt.sign(
-            {
-                userId: user.id,
-                email: user.email,
-                phone: user.phone
-            },
-            process.env.JWT_SECRET || 'your-secret-key',
-            { expiresIn: '30d' }
-        );
+        const token = generateUserToken(user)
 
         return NextResponse.json({
             success: true,

@@ -9,7 +9,6 @@ import ScratchCard from '@/components/ScratchCard'
 import SuccessAnimation from '@/components/animations/SuccessAnimation'
 import LottieAnimation from '@/components/LottieAnimation'
 import toast from 'react-hot-toast'
-import successAnimData from '@/public/animations/Sucesso.json'
 import { saveCrashCashReward } from '@/lib/crashcashStorage'
 
 export default function OrderSuccess() {
@@ -20,6 +19,7 @@ export default function OrderSuccess() {
     const [loading, setLoading] = useState(true)
     const [showScratchCard, setShowScratchCard] = useState(false)
     const [scratchReward, setScratchReward] = useState(null)
+    const [successAnim, setSuccessAnim] = useState(null)
 
     const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹'
 
@@ -40,36 +40,86 @@ export default function OrderSuccess() {
                      headers['Authorization'] = `Bearer ${token}`
                  }
                  
-                 // Fetch order from API
-                 const response = await fetch(`/api/orders/${orderId}`, {
-                     method: 'GET',
-                     headers
-                 })
+                // Fetch order from API
+                const response = await fetch(`/api/orders/${orderId}`, {
+                    method: 'GET',
+                    headers
+                })
 
-                 if (response.ok) {
-                     const data = await response.json()
-                     setOrder(data.order)
+                // declare flags in outer scope so they are available later
+                let isRepayment = false
+                let skipScratchCardFlag = false
+
+                // Try to parse JSON body if available
+                let data = null
+                try {
+                    data = await response.json()
+                } catch (e) {
+                    data = null
+                }
+
+                if (response.ok && data && data.order) {
+                    setOrder(data.order)
+                } else if (data && data.order) {
+                    // Server returned an order payload but not OK (use it)
+                    console.warn('⚠️ Order fetch returned non-OK status but provided order payload:', response.status)
+                    setOrder(data.order)
+                } else {
+                    // Fallback: try to get from sessionStorage (in case order was just created)
+                    const checkoutData = sessionStorage.getItem('checkoutData')
+                    if (checkoutData) {
+                        const sd = JSON.parse(checkoutData)
+                        setOrder({
+                            id: orderId,
+                            items: sd.items,
+                            subtotal: sd.subtotal,
+                            discount: sd.discount,
+                            total: sd.total,
+                            selectedAddressId: sd.selectedAddressId
+                        })
+                    }
+                }
                      
                      console.log('💰 Order data received:', {
                          orderId: data.order?.id,
                          crashCashEarned: data.crashCashEarned,
-                         total: data.order?.total
+                         total: data.order?.total,
+                         notes: data.order?.notes
                      })
                      
-                     // Save CrashCash reward to localStorage with 30-day expiry
-                     if (data.crashCashEarned && data.crashCashEarned > 0) {
+                     // Parse notes to check if this is a repayment or if scratchcard should be skipped
+                    try {
+                        const orderNotes = JSON.parse(data.order?.notes || '{}')
+                        isRepayment = orderNotes.retryAt || orderNotes.convertedFromCOD || orderNotes.isRepayment
+                        skipScratchCardFlag = !!(orderNotes.skipScratchCard || orderNotes.scratchCardShown || orderNotes.crashCashReward)
+                        console.log('🔍 Is repayment?', isRepayment, 'skipScratchCard?', skipScratchCardFlag)
+                    } catch (e) {
+                        console.warn('Could not parse order notes:', e)
+                    }
+                     
+                     // Only save CrashCash reward if NOT a repayment
+                     // Repayments should not earn additional CrashCash (already earned on original order)
+                     if (!isRepayment && data.crashCashEarned && data.crashCashEarned > 0) {
                          console.log(`💾 Saving ₹${data.crashCashEarned} CrashCash to localStorage`)
                          const saved = saveCrashCashReward(orderId, data.crashCashEarned, 'order')
                          
                          if (saved) {
                              console.log('✅ CrashCash saved successfully to localStorage')
-                             toast.success(`₹${data.crashCashEarned} CrashCash added to your account!`, {
-                                 icon: '💰',
-                                 duration: 4000
-                             })
+                            toast.success(`₹${data.crashCashEarned} CrashCash added to your account!`, {
+                                icon: '💰',
+                                duration: 4000
+                            })
+                            // Dispatch event so any overlay animation can play
+                            try {
+                                window.dispatchEvent(new Event('crashcash-added'))
+                            } catch (e) {
+                                console.warn('Could not dispatch crashcash-added event', e)
+                            }
                          } else {
                              console.error('❌ Failed to save CrashCash to localStorage')
                          }
+                     } else if (isRepayment) {
+                         console.log('⏭️  Skipping CrashCash for repayment - reward already earned on original order')
                      } else {
                          console.warn('⚠️ No CrashCash earned data in response')
                      }
@@ -119,25 +169,27 @@ export default function OrderSuccess() {
                              console.log('✅ Order already processed and marked as paid')
                          }
                      }
-                 } else {
-                     // Fallback: try to get from sessionStorage (in case order was just created)
-                     const checkoutData = sessionStorage.getItem('checkoutData')
-                     if (checkoutData) {
-                         const data = JSON.parse(checkoutData)
-                         setOrder({
-                             id: orderId,
-                             items: data.items,
-                             subtotal: data.subtotal,
-                             discount: data.discount,
-                             total: data.total,
-                             selectedAddressId: data.selectedAddressId
-                         })
-                     }
-                 }
 
-                 // Calculate CrashCash reward (10% of order total)
-                 const reward = order?.total ? Math.floor(order.total * 0.1) : 50
-                 setScratchReward(reward)
+                    // Calculate CrashCash reward (prefer server crashCashEarned; fallback to 10% of order total)
+                    // Don't show rewards for repayments or if skipScratchCard is set
+                    const orderFromApi = data.order || order
+                    let parsedNotes = {}
+                    try {
+                        parsedNotes = JSON.parse(orderFromApi?.notes || '{}')
+                    } catch (e) {
+                        parsedNotes = {}
+                    }
+
+                    const isRepaymentFinal = isRepayment || parsedNotes.retryAt || parsedNotes.convertedFromCOD || parsedNotes.isRepayment
+                    const skipScratch = !!(parsedNotes.skipScratchCard || parsedNotes.scratchCardShown || parsedNotes.crashCashReward)
+                    const rewardRaw = data.crashCashEarned ?? Math.floor((orderFromApi?.total || 0) * 0.1)
+                    const reward = (!isRepaymentFinal && !skipScratch && rewardRaw > 0) ? rewardRaw : 0
+                    setScratchReward(reward)
+
+                    // Do not auto-show the scratch card here; show via action button instead
+                    if (reward > 0 && !isRepaymentFinal && !skipScratch) {
+                        setShowScratchCard(false)
+                    }
                  
              } catch (error) {
                  console.error('Error fetching order:', error)
@@ -149,6 +201,18 @@ export default function OrderSuccess() {
 
          fetchOrderDetails()
      }, [orderId, router, order?.total])
+
+    useEffect(() => {
+        let mounted = true
+        fetch('/animations/Sucesso.json')
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load Sucesso')
+                return res.json()
+            })
+            .then(data => { if (mounted) setSuccessAnim(data) })
+            .catch(err => console.debug('Failed to load Sucesso animation', err))
+        return () => { mounted = false }
+    }, [])
 
     if (loading) {
         return (
@@ -193,21 +257,6 @@ export default function OrderSuccess() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-cyan-50 dark:from-slate-900 dark:to-slate-800 py-12 px-4">
             <div className="max-w-2xl mx-auto">
-                {/* Success Animation - Sucesso.json */}
-                <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.6 }}
-                    className="text-center mb-8 flex justify-center"
-                >
-                    <LottieAnimation 
-                        animationData={successAnimData}
-                        width={250}
-                        height={250}
-                        loop={true}
-                    />
-                </motion.div>
-
                 {/* Success Message */}
                 <motion.div
                     initial={{ y: 10, opacity: 0 }}
@@ -267,6 +316,30 @@ export default function OrderSuccess() {
                                 {currency}{(order?.subtotal || 0).toLocaleString()}
                             </span>
                         </div>
+
+                        {/* Delivery / Shipping breakdown (if any) */}
+                        <div className="flex justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">Shipping:</span>
+                            <span className="font-semibold text-slate-800 dark:text-white">
+                                {order?.deliveryCharge ? `${currency}${Number(order.deliveryCharge).toLocaleString()}` : 'Free'}
+                            </span>
+                        </div>
+
+                        {/* Optional fee breakdown */}
+                        {/* shippingFee row removed to avoid duplicate display when Delivery/Shipping already shown */}
+                        {order?.convenienceFee > 0 && (
+                            <div className="flex justify-between text-sm text-slate-600">
+                                <span>• Convenience Fee:</span>
+                                <span>{currency}{Number(order.convenienceFee).toLocaleString()}</span>
+                            </div>
+                        )}
+                        {order?.platformFee > 0 && (
+                            <div className="flex justify-between text-sm text-slate-600">
+                                <span>• Platform Fee:</span>
+                                <span>{currency}{Number(order.platformFee).toLocaleString()}</span>
+                            </div>
+                        )}
+
                         {order?.discount > 0 && (
                             <div className="flex justify-between text-green-600 dark:text-green-400">
                                 <span>Discount:</span>
@@ -279,6 +352,20 @@ export default function OrderSuccess() {
                         </div>
                     </div>
 
+                    {/* Success Animation - Sucesso.json (below summary) */}
+                    <motion.div
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center my-6 flex justify-center"
+                    >
+                        {successAnim ? (
+                            <LottieAnimation animationData={successAnim} width={220} height={220} loop={true} />
+                        ) : (
+                            <div className="text-slate-500">Loading animation…</div>
+                        )}
+                    </motion.div>
+
                     {/* CrashCash Earned */}
                     {scratchReward && (
                         <motion.div
@@ -288,7 +375,7 @@ export default function OrderSuccess() {
                             className="mb-6 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-lg border border-yellow-300 dark:border-yellow-700"
                         >
                             <div className="flex items-center gap-3">
-                                <Sparkles className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                                <Sparkles className="w-6 h-6 text-yellow-600" />
                                 <div>
                                     <p className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">Bonus Earned</p>
                                     <p className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
@@ -301,7 +388,7 @@ export default function OrderSuccess() {
 
                     {/* Tracking Info */}
                     <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-700">
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                        <h3 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
                             <Truck size={20} className="text-emerald-600" />
                             Track Your Order
                         </h3>
@@ -360,20 +447,29 @@ export default function OrderSuccess() {
                     >
                         Go to My Orders
                     </Link>
-                    <Link
-                        href="/shop"
+                    <button
+                        onClick={() => {
+                            try {
+                                const url = `${window.location.origin}/track/${order?.id}`
+                                navigator.clipboard.writeText(url)
+                                toast.success('Tracking link copied to clipboard!')
+                            } catch (e) {
+                                console.error('Failed to copy tracking link', e)
+                                toast.error('Could not copy tracking link')
+                            }
+                        }}
                         className="flex-1 px-6 py-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded-lg transition text-center"
                     >
-                        Continue Shopping
-                    </Link>
+                        Share Tracking Link
+                    </button>
                     {scratchReward && (
-                        <button
-                            onClick={() => setShowScratchCard(true)}
+                        <Link
+                            href="/scratch-card"
                             className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition flex items-center justify-center gap-2"
                         >
                             <Sparkles size={18} />
                             Reveal Scratch Card
-                        </button>
+                        </Link>
                     )}
                 </motion.div>
 

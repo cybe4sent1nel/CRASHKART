@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bell, X, Check, Trash2, ExternalLink, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import LottieAnimation from './LottieAnimation'
 import toast from 'react-hot-toast';
 
 export default function NotificationCenter() {
@@ -113,8 +114,32 @@ export default function NotificationCenter() {
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
-    return () => clearInterval(interval);
+
+    // Listen for immediate events to refresh
+    const handler = () => fetchNotifications()
+    window.addEventListener('crashcash-added', handler)
+    window.addEventListener('crashcash-update', handler)
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('crashcash-added', handler)
+      window.removeEventListener('crashcash-update', handler)
+    }
   }, []);
+
+  // Load empty-state animation when there are no notifications
+  const [emptyAnimation, setEmptyAnimation] = useState(null)
+  useEffect(() => {
+    if (!loading && notifications.length === 0) {
+      const path = '/animations/Empty%20Notifications.json'
+      fetch(path)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) setEmptyAnimation(data)
+        })
+        .catch(err => console.warn('Failed to load empty notifications animation:', err))
+    }
+  }, [loading, notifications.length])
 
   // Get icon based on notification type
   const getIcon = (type) => {
@@ -204,7 +229,13 @@ export default function NotificationCenter() {
                   </div>
                 ) : notifications.length === 0 ? (
                   <div className="p-8 text-center">
-                    <Bell className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    {emptyAnimation ? (
+                      <div className="mx-auto mb-3" style={{ width: 220, height: 220 }}>
+                        <LottieAnimation animationData={emptyAnimation} width={220} height={220} loop={true} />
+                      </div>
+                    ) : (
+                      <Bell className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    )}
                     <p className="text-gray-500 dark:text-gray-400">
                       No notifications yet
                     </p>

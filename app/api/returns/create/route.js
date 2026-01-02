@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import nodemailer from 'nodemailer'
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 export async function POST(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(

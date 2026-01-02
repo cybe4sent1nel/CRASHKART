@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 // Sort mappings
 const sortMappings = {
@@ -14,16 +15,24 @@ const sortMappings = {
 
 export async function GET(request) {
   try {
+    const { authOptions } = await import('@/lib/auth')
     const session = await getServerSession(authOptions)
     
-    // Check if user is admin - allow main admin email or isAdmin flag
-    const userEmail = session?.user?.email
-    const isMainAdmin = userEmail === 'crashkart.help@gmail.com'
-    const isAdmin = session?.user?.isAdmin === true || isMainAdmin
-    
-    if (!isAdmin) {
+    if (!session?.user?.email) {
       return NextResponse.json(
-        { message: 'Unauthorized' },
+        { message: 'Unauthorized - No session found' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user is admin from database (dynamic import to avoid build issues)
+    const { isAdmin } = await import('@/lib/adminAuth')
+    const userIsAdmin = await isAdmin(session.user.email)
+    
+    if (!userIsAdmin) {
+      console.warn(`Unauthorized feedback access attempt by ${session.user.email}`)
+      return NextResponse.json(
+        { message: 'Forbidden - Admin access required' },
         { status: 403 }
       )
     }
@@ -163,16 +172,24 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const session = await getServerSession(authOptions)
+            const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
     
-    // Check if user is admin - allow main admin email or isAdmin flag
-    const userEmail = session?.user?.email
-    const isMainAdmin = userEmail === 'crashkart.help@gmail.com'
-    const isAdmin = session?.user?.isAdmin === true || isMainAdmin
-    
-    if (!isAdmin) {
+    if (!session?.user?.email) {
       return NextResponse.json(
-        { message: 'Unauthorized' },
+        { message: 'Unauthorized - No session found' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user is admin from database (dynamic import to avoid build issues)
+    const { isAdmin } = await import('@/lib/adminAuth')
+    const userIsAdmin = await isAdmin(session.user.email)
+    
+    if (!userIsAdmin) {
+      console.warn(`Unauthorized feedback POST attempt by ${session.user.email}`)
+      return NextResponse.json(
+        { message: 'Forbidden - Admin access required' },
         { status: 403 }
       )
     }

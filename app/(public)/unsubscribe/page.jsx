@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
+import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CheckCircle, AlertCircle, Mail, Bell, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -235,9 +236,9 @@ function UnsubscribePageContent() {
                     {/* Footer */}
                     <div className="mt-8 pt-8 border-t border-slate-700 text-center">
                         <p className="text-slate-400 text-sm mb-4">
-                            Need help? <a href="/contact" className="text-red-500 hover:text-red-400">Contact us</a>
+                            Need help? <Link href="/contact" className="text-red-500 hover:text-red-400">Contact us</Link>
                         </p>
-                        <a href="/" className="text-slate-500 hover:text-slate-400 text-sm">← Back to home</a>
+                        <Link href="/" className="text-slate-500 hover:text-slate-400 text-sm">← Back to home</Link>
                     </div>
                 </div>
             </div>

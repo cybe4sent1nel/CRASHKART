@@ -1,10 +1,10 @@
 'use client'
-import { useRef, useEffect, useState } from 'react'
-import { Gift, Sparkles, Lock, Share2, Clock, Trash2, CheckCircle, AlertCircle } from 'lucide-react'
+import { useRef, useEffect, useState, useMemo } from 'react'
+import { Gift, Sparkles, Lock, Share2, Clock, Trash2, CheckCircle, AlertCircle, Frown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import toast from 'react-hot-toast'
-import { getUserCrashCash, addUserCrashCash } from '@/lib/userCrashcashUtils'
+import { getUserCrashCash } from '@/lib/userCrashcashUtils'
 
 export default function ScratchCard({ reward: initialReward, onReveal }) {
     const canvasRef = useRef(null)
@@ -14,62 +14,66 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
     const revealedRef = useRef(false)
     const router = useRouter()
 
+    const themes = useMemo(() => ([
+        { name: 'sunrise', start: '#ff9a9e', mid: '#fad0c4', end: '#fcb69f', confetti: ['#ff9a9e', '#fad0c4', '#fcb69f', '#ffe29f'] },
+        { name: 'aurora', start: '#a1c4fd', mid: '#c2e9fb', end: '#6dd5ed', confetti: ['#a1c4fd', '#6dd5ed', '#2193b0', '#bfe9ff'] },
+        { name: 'citrus', start: '#f6d365', mid: '#fda085', end: '#ff9f1c', confetti: ['#f6d365', '#fda085', '#ff9f1c', '#ffd166'] },
+        { name: 'twilight', start: '#a18cd1', mid: '#fbc2eb', end: '#8ec5fc', confetti: ['#a18cd1', '#fbc2eb', '#8ec5fc', '#e0c3fc'] },
+        { name: 'forest', start: '#11998e', mid: '#38ef7d', end: '#56ab2f', confetti: ['#11998e', '#38ef7d', '#56ab2f', '#a8e063'] }
+    ]), [])
+    
+    // Fix hydration mismatch - generate theme on client side only
+    const [theme, setTheme] = useState(themes[0])
+    const [cardGradient, setCardGradient] = useState(`linear-gradient(135deg, ${themes[0].start}, ${themes[0].mid}, ${themes[0].end})`)
+
     useEffect(() => {
+        // Generate random theme on client only (fix hydration)
+        const selectedTheme = themes[Math.floor(Math.random() * themes.length)]
+        setTheme(selectedTheme)
+        setCardGradient(`linear-gradient(135deg, ${selectedTheme.start}, ${selectedTheme.mid}, ${selectedTheme.end})`)
+        
         const stored = localStorage.getItem('scratchCardRewards')
         if (stored) {
             setSavedRewards(JSON.parse(stored))
         }
-    }, [])
+        
+        // ✅ REMOVED: No longer auto-restore scratched cards
+        // Let user scratch fresh every time they visit the page
+    }, [themes])
 
     const generateRandomReward = () => {
         const random = Math.random()
-        
-        // 10% chance of no win (reduced from 30%)
-        if (random < 0.1) {
-            return {
-                type: 'nowin',
-                value: null,
-                code: null,
-                message: 'Better luck next time!',
-                expiryDate: null,
-                discount: null,
-                crashcash: null
-            }
+        if (random < 0.08) {
+            return { type: 'nowin', value: null, code: null, message: 'Better luck next time!', expiryDate: null, discount: null, crashcash: null }
         }
 
-        // 50% Discount Offer, 50% CrashCash (total 90% win rate)
-        const rewardType = Math.random() < 0.5 ? 'discount' : 'crashcash'
-        
-        if (rewardType === 'discount') {
-            const discountValues = [5, 10, 15, 20, 25]
-            const selectedDiscount = discountValues[Math.floor(Math.random() * discountValues.length)]
-            const uniqueCode = `CRASH${Date.now().toString().slice(-6).toUpperCase()}`
-            
-            return {
-                type: 'reward',
-                rewardType: 'discount',
-                crashcash: null,
-                discount: selectedDiscount,
-                code: uniqueCode,
-                expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                orderId: null,
-                wonDate: new Date().toLocaleDateString()
-            }
-        } else {
-            const crashcashValues = [50, 75, 100, 125, 150, 200, 250, 300, 500]
-            const selectedCrashcash = crashcashValues[Math.floor(Math.random() * crashcashValues.length)]
-            
-            return {
-                type: 'reward',
-                rewardType: 'crashcash',
-                crashcash: selectedCrashcash,
-                discount: null,
-                code: null,
-                expiryDate: null,
-                orderId: null,
-                wonDate: new Date().toLocaleDateString()
-            }
+        const rewardPool = [
+            { rewardType: 'discount', discount: 12, bonusCrashcash: 25 },
+            { rewardType: 'discount', discount: 18, bonusCrashcash: 40 },
+            { rewardType: 'discount', discount: 25, bonusCrashcash: 60 },
+            { rewardType: 'crashcash', crashcash: 120 },
+            { rewardType: 'crashcash', crashcash: 180 },
+            { rewardType: 'crashcash', crashcash: 240 },
+            { rewardType: 'crashcash', crashcash: 360 },
+            { rewardType: 'discount', discount: 30, bonusCrashcash: 80 },
+            { rewardType: 'discount', discount: 10, bonusCrashcash: 20 },
+            { rewardType: 'crashcash', crashcash: 500 }
+        ]
+
+        const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)]
+        const uniqueCode = `CRASH${Date.now().toString().slice(-6).toUpperCase()}`
+        const base = {
+            type: 'reward',
+            code: pick.rewardType === 'discount' ? uniqueCode : null,
+            orderId: null,
+            wonDate: new Date().toLocaleDateString()
         }
+
+        if (pick.rewardType === 'discount') {
+            return { ...base, rewardType: 'discount', crashcash: null, discount: pick.discount, bonusCrashcash: pick.bonusCrashcash || 0, expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000) }
+        }
+
+        return { ...base, rewardType: 'crashcash', crashcash: pick.crashcash, discount: null, bonusCrashcash: pick.crashcash, expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }
     }
 
     const getRandomCrashcashAmount = (minAmount = 5, maxAmount = 50) => {
@@ -78,6 +82,7 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
     }
 
     useEffect(() => {
+        // Always draw scratch layer when component mounts
         const canvas = canvasRef.current
         if (!canvas) return
 
@@ -88,15 +93,15 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
         canvas.height = 450
 
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-        gradient.addColorStop(0, '#a855f7')
-        gradient.addColorStop(0.5, '#9333ea')
-        gradient.addColorStop(1, '#7e22ce')
+        gradient.addColorStop(0, theme.start)
+        gradient.addColorStop(0.5, theme.mid)
+        gradient.addColorStop(1, theme.end)
         
         ctx.fillStyle = gradient
         ctx.fillRect(0, 0, canvas.width, canvas.height)
-    }, [])
+    }, [theme])
 
-    const handleScratch = (e) => {
+    const handleScratch = async (e) => {
         if (revealedRef.current) return
 
         const canvas = canvasRef.current
@@ -135,14 +140,26 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
 
                 if (percentScratched > 20) {
                     revealedRef.current = true
+                    
                     const randomReward = generateRandomReward()
                     
-                    confetti({
-                        particleCount: 150,
-                        spread: 100,
-                        origin: { y: 0.5 },
-                        colors: ['#a855f7', '#9333ea', '#7e22ce', '#ec4899', '#f472b6']
-                    })
+                    // 🎉 Always trigger confetti for all rewards (even nowin gets gentle effect)
+                    if (randomReward.type !== 'nowin') {
+                        confetti({
+                            particleCount: 150,
+                            spread: 100,
+                            origin: { y: 0.5 },
+                            colors: theme.confetti
+                        })
+                    } else {
+                        // Gentle confetti for no-win too
+                        confetti({
+                            particleCount: 50,
+                            spread: 60,
+                            origin: { y: 0.5 },
+                            colors: ['#94a3b8', '#cbd5e1']
+                        })
+                    }
 
                     if (randomReward.type !== 'nowin') {
                          // Calculate bonus crashcash for discount rewards
@@ -153,54 +170,186 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                              crashcashToAdd = randomReward.crashcash
                              displayMessage = `₹${crashcashToAdd} CrashCash added to your wallet!`
                          } else {
-                             // For discount rewards, also add a random bonus crashcash (5-30)
-                             crashcashToAdd = getRandomCrashcashAmount(5, 30)
+                             crashcashToAdd = randomReward.bonusCrashcash || getRandomCrashcashAmount(5, 30)
                              displayMessage = `${randomReward.discount}% Discount Coupon + ₹${crashcashToAdd} CrashCash!`
                          }
                          
-                         const rewardWithId = {
-                             ...randomReward,
-                             id: Date.now(),
-                             scratchedAt: new Date().toISOString(),
-                             bonusCrashcash: randomReward.rewardType === 'discount' ? crashcashToAdd : 0,
-                             expiresAt: randomReward.rewardType === 'discount' 
-                                 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                                 : null
-                         }
-                         
-                         // Save discount/coupon rewards to separate storage for rewards page
-                         if (randomReward.rewardType === 'discount') {
-                             const discountRewards = JSON.parse(localStorage.getItem('discountRewards') || '[]')
-                             discountRewards.push(rewardWithId)
-                             localStorage.setItem('discountRewards', JSON.stringify(discountRewards))
-                         }
+                        const thirtyDaysISO = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                        const fifteenDaysISO = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString()
+                        const rewardWithId = {
+                            ...randomReward,
+                            id: Date.now(),
+                            scratchedAt: new Date().toISOString(),
+                            bonusCrashcash: randomReward.rewardType === 'discount' ? crashcashToAdd : randomReward.bonusCrashcash || crashcashToAdd,
+                            expiresAt: randomReward.rewardType === 'discount' ? fifteenDaysISO : thirtyDaysISO
+                        }
+
+                        const discountRewards = JSON.parse(localStorage.getItem('discountRewards') || '[]')
+                        discountRewards.push({
+                            id: rewardWithId.id,
+                            rewardType: rewardWithId.rewardType,
+                            discount: rewardWithId.discount,
+                            code: rewardWithId.code,
+                            amount: rewardWithId.crashcash || rewardWithId.bonusCrashcash || 0,
+                            bonusCrashcash: rewardWithId.bonusCrashcash || 0,
+                            scratchedAt: rewardWithId.scratchedAt,
+                            earnedAt: rewardWithId.scratchedAt,
+                            expiresAt: rewardWithId.expiresAt,
+                            status: 'active'
+                        })
+                        localStorage.setItem('discountRewards', JSON.stringify(discountRewards))
                          
                          // Keep for backward compatibility and internal tracking
                          const updated = [...savedRewards, rewardWithId]
                          setSavedRewards(updated)
                          localStorage.setItem('scratchCardRewards', JSON.stringify(updated))
 
-                         // Add crash cash to user (per-user storage)
-                         const userData = localStorage.getItem('user')
-                         if (userData) {
-                             try {
-                                 const user = JSON.parse(userData)
-                                 const email = user.email
-                                 if (email) {
-                                     addUserCrashCash(email, crashcashToAdd, 30, 'scratch')
+                         // Save rewards to database based on type
+                         try {
+                             if (randomReward.rewardType === 'discount') {
+                                 console.log('💾 Saving discount coupon:', {
+                                     code: randomReward.code,
+                                     discount: randomReward.discount,
+                                     bonusCrashcash: randomReward.bonusCrashcash,
+                                     expiryDate: randomReward.expiryDate
+                                 })
+                                 
+                                 // Save discount coupon to database
+                                 const couponResp = await fetch('/api/scratchcard', {
+                                     method: 'POST',
+                                     headers: { 'Content-Type': 'application/json' },
+                                     body: JSON.stringify({
+                                         rewardType: 'discount',
+                                         rewardValue: randomReward.discount,
+                                         rewardCode: randomReward.code,
+                                         expiresAt: randomReward.expiryDate
+                                     })
+                                 })
+                                 
+                                 if (!couponResp.ok) {
+                                     console.warn(`⚠️ Failed to save coupon to database (Status: ${couponResp.status}). Coupon saved locally only.`)
+                                     const errorData = await couponResp.json().catch(() => ({}))
+                                     console.error('API Error:', errorData.message || 'Unknown error')
+                                 } else {
+                                     const couponData = await couponResp.json()
+                                     if (couponData.success) {
+                                         console.log('✅ Discount coupon saved to database')
+                                     } else {
+                                         console.warn('⚠️ Coupon saved locally. Database save may have failed:', couponData.message || 'No error message')
+                                     }
                                  }
-                             } catch (error) {
-                                 console.error('Error adding crash cash:', error)
+                                 
+                                 // If there's bonus CrashCash with discount, add it
+                                 if (randomReward.bonusCrashcash && randomReward.bonusCrashcash > 0) {
+                                     console.log('💰 Adding bonus CrashCash:', randomReward.bonusCrashcash)
+                                     
+                                     // ✅ IMMEDIATELY update localStorage balance (works even if not logged in)
+                                     try {
+                                         const currentBalance = parseInt(localStorage.getItem('crashCashBalance') || '0')
+                                         const newBalance = currentBalance + randomReward.bonusCrashcash
+                                         localStorage.setItem('crashCashBalance', newBalance.toString())
+                                         console.log(`✅ Bonus CrashCash added to localStorage: ₹${randomReward.bonusCrashcash} (New balance: ₹${newBalance})`)
+                                         window.dispatchEvent(new Event('crashcash-update'))
+                                         window.dispatchEvent(new Event('storage'))
+                                     } catch (e) {
+                                         console.error('❌ Failed to update localStorage balance:', e)
+                                     }
+                                     
+                                     // Try to sync with database (if user is logged in)
+                                     try {
+                                         const token = localStorage.getItem('token')
+                                         const headers = {
+                                             'Content-Type': 'application/json',
+                                             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                                         }
+                                         
+                                         const bonusResp = await fetch('/api/crashcash/add', {
+                                             method: 'POST',
+                                             headers,
+                                             body: JSON.stringify({
+                                                 amount: randomReward.bonusCrashcash,
+                                                 source: 'scratch_card_bonus',
+                                                 orderId: null
+                                             })
+                                         })
+                                         
+                                         if (bonusResp.ok) {
+                                             const bonusData = await bonusResp.json()
+                                             if (bonusData.success) {
+                                                 console.log('✅ Bonus CrashCash synced to database')
+                                             }
+                                         } else {
+                                             console.warn(`⚠️ Could not sync to database (Status: ${bonusResp.status}). Balance saved locally.`)
+                                         }
+                                     } catch (apiError) {
+                                         console.warn('⚠️ Database sync failed, but balance saved locally:', apiError.message)
+                                     }
+                                 }
+                             } else if (randomReward.rewardType === 'crashcash' && crashcashToAdd > 0) {
+                                 console.log('💰 Adding CrashCash:', crashcashToAdd)
+                                 
+                                 // ✅ IMMEDIATELY update localStorage balance (works even if not logged in)
+                                 try {
+                                     const currentBalance = parseInt(localStorage.getItem('crashCashBalance') || '0')
+                                     const newBalance = currentBalance + crashcashToAdd
+                                     localStorage.setItem('crashCashBalance', newBalance.toString())
+                                     console.log(`✅ CrashCash added to localStorage: ₹${crashcashToAdd} (New balance: ₹${newBalance})`)
+                                     window.dispatchEvent(new Event('crashcash-update'))
+                                     window.dispatchEvent(new Event('storage'))
+                                 } catch (e) {
+                                     console.error('❌ Failed to update localStorage balance:', e)
+                                 }
+                                 
+                                 // Try to sync with database (if user is logged in)
+                                 try {
+                                     const token = localStorage.getItem('token')
+                                     const headers = {
+                                         'Content-Type': 'application/json',
+                                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                                     }
+                                     
+                                     const resp = await fetch('/api/crashcash/add', {
+                                         method: 'POST',
+                                         headers,
+                                         body: JSON.stringify({
+                                             amount: crashcashToAdd,
+                                             source: 'scratch_card',
+                                             orderId: null
+                                         })
+                                     })
+                                     
+                                     if (resp.ok) {
+                                         const data = await resp.json()
+                                         if (data.success) {
+                                             console.log('✅ CrashCash synced to database, server balance:', data.newBalance)
+                                         }
+                                     } else {
+                                         console.warn(`⚠️ Could not sync to database (Status: ${resp.status}). Balance saved locally.`)
+                                     }
+                                 } catch (apiError) {
+                                     console.warn('⚠️ Database sync failed, but balance saved locally:', apiError.message)
+                                 }
                              }
+                         } catch (e) {
+                             console.error('❌ Error saving reward to database:', e)
+                             console.log('💾 Reward still saved to localStorage for user access')
                          }
                          
+                         // Store complete reward details for restoration on page refresh
                          localStorage.setItem('lastCrashcashWin', JSON.stringify({
-                             amount: crashcashToAdd,
-                             date: new Date().toISOString(),
-                             code: randomReward.code,
+                             type: randomReward.type,
+                             rewardType: randomReward.rewardType,
+                             crashcash: randomReward.crashcash,
                              discount: randomReward.discount,
-                             rewardType: randomReward.rewardType
+                             bonusCrashcash: randomReward.bonusCrashcash,
+                             code: randomReward.code,
+                             expiryDate: randomReward.expiryDate,
+                             message: randomReward.message,
+                             date: new Date().toISOString()
                          }))
+                         
+                         // 🛡️ Store timestamp for analytics
+                         localStorage.setItem('lastScratchCardRedeemed', Date.now().toString())
                          
                          // Show correct toast message
                          toast.success(displayMessage, {
@@ -226,9 +375,20 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
     }
 
     const deleteSavedReward = (id) => {
+        const toDelete = savedRewards.find(r => r.id === id)
         const updated = savedRewards.filter(r => r.id !== id)
         setSavedRewards(updated)
         localStorage.setItem('scratchCardRewards', JSON.stringify(updated))
+
+        // Keep a deletion history for audit / user support
+        try {
+            const histKey = 'scratchCardDeleteHistory'
+            const existingHist = JSON.parse(localStorage.getItem(histKey) || '[]')
+            existingHist.push({ id, deletedAt: new Date().toISOString(), reward: toDelete || null })
+            localStorage.setItem(histKey, JSON.stringify(existingHist))
+        } catch (e) {
+            console.warn('Failed writing scratch delete history', e)
+        }
     }
 
     const handleUnlock = () => {
@@ -335,26 +495,10 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                 <div className="flex flex-col gap-4 w-full px-4 py-6">
                     <div className="flex flex-col justify-center items-center">
                         <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-2">
-                            Congratulations!
+                            Reward Revealed!
                         </h2>
                         <p className="text-sm text-slate-600 mb-4 text-center">
-                            Here is your Scratch Card
-                        </p>
-                        
-                        <div className="relative w-full max-w-xs bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-2xl shadow-2xl overflow-hidden aspect-[3/4] flex items-center justify-center">
-                            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                                <div className="absolute top-8 left-8 w-12 h-12 rounded-full bg-purple-700/30"></div>
-                                <div className="absolute bottom-12 right-8 w-8 h-8 rounded-full bg-purple-300/20"></div>
-                                <div className="absolute top-1/2 left-1/4 w-6 h-6 rounded-full bg-purple-300/10"></div>
-                            </div>
-                            
-                            <div className="relative z-5 text-center pointer-events-none">
-                                <Gift className="mx-auto text-white/80 mb-4" size={40} />
-                            </div>
-                        </div>
-                        
-                        <p className="text-xs text-slate-600 mt-3 text-center">
-                            Reward revealed!
+                            Here's what you won
                         </p>
                     </div>
 
@@ -362,12 +506,12 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                         {revealedReward.type === 'nowin' ? (
                             <div className="text-center w-full">
                                 <div className="mb-4">
-                                    <div className="inline-block bg-gradient-to-br from-yellow-200 to-yellow-400 rounded-full p-6 mb-3 shadow-lg">
-                                        <Sparkles className="text-yellow-600" size={48} strokeWidth={1.5} />
+                                    <div className="inline-block bg-gradient-to-br from-slate-200 to-slate-300 rounded-full p-8 mb-3 shadow-lg">
+                                        <Frown className="text-slate-600" size={64} strokeWidth={1.5} />
                                     </div>
                                 </div>
                                 <p className="text-2xl font-bold text-slate-900 mb-2">
-                                    {revealedReward.message}
+                                    Better luck next time!
                                 </p>
                                 <p className="text-slate-600 mb-4 text-sm">
                                     Don't worry! You have more scratch cards to try.
@@ -386,22 +530,22 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                                     <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-2xl p-6">
                                         <img src="/crashcash.ico" alt="CrashCash" className="w-16 h-16 mx-auto mb-3" />
                                         <p className="text-4xl font-bold text-slate-900 mb-2">
-                                            ₹{revealedReward.crashcash}
+                                            ₹{revealedReward.crashcash || 0}
                                         </p>
                                         <p className="text-lg text-slate-600 font-semibold mb-1">
                                             CrashCash Won!
                                         </p>
                                         <p className="text-sm text-slate-600">
-                                            Will be credited to your wallet
+                                            Credited to your wallet
                                         </p>
                                     </div>
                                 </div>
                             </>
-                        ) : (
+                        ) : revealedReward.rewardType === 'discount' ? (
                             <>
                                 <div className="mb-4 text-center">
-                                    <div className="inline-block bg-gradient-to-br from-yellow-200 to-orange-200 rounded-full p-6 mb-3 shadow-xl">
-                                        <Gift className="text-yellow-500 animate-bounce" size={48} strokeWidth={1} />
+                                    <div className="inline-block bg-gradient-to-br from-purple-200 to-pink-200 rounded-full p-6 mb-3 shadow-xl">
+                                        <Gift className="text-purple-600 animate-bounce" size={48} strokeWidth={1} />
                                     </div>
                                     <p className="text-slate-600 font-bold text-base mt-2">You won a Discount!</p>
                                 </div>
@@ -410,19 +554,26 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                                     <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl p-6">
                                         <p className="text-xs text-slate-600 font-semibold mb-2">Discount Offer</p>
                                         <p className="text-4xl font-bold text-slate-900 mb-3">
-                                            {revealedReward.discount}% OFF
+                                            {revealedReward.discount || 0}% OFF
                                         </p>
                                         <div className="bg-white/60 rounded p-3 mb-3">
                                             <p className="text-xs text-slate-600 mb-1">Coupon Code</p>
-                                            <p className="font-mono font-bold text-base text-slate-800">{revealedReward.code}</p>
+                                            <p className="font-mono font-bold text-base text-slate-800">{revealedReward.code || 'N/A'}</p>
                                         </div>
                                         <p className="text-sm text-slate-600">
-                                            Valid till {new Date(revealedReward.expiryDate).toLocaleDateString()}
+                                            Valid till {revealedReward.expiryDate ? new Date(revealedReward.expiryDate).toLocaleDateString() : 'N/A'}
                                         </p>
+                                        {revealedReward.bonusCrashcash > 0 && (
+                                            <div className="mt-3 bg-yellow-50 rounded p-2">
+                                                <p className="text-xs text-yellow-700 font-medium">
+                                                    + ₹{revealedReward.bonusCrashcash} Bonus CrashCash!
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </>
-                        )}
+                        ) : null}
 
                         <div className="w-full h-px bg-slate-200 my-3"></div>
 
@@ -551,7 +702,7 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                     <h2 className="text-xl font-bold text-slate-900 mb-2">Congratulations!</h2>
                     <p className="text-sm text-slate-600 mb-4 text-center">Here is your Scratch Card</p>
                     
-                    <div className="relative w-full max-w-xs bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-2xl shadow-2xl overflow-hidden aspect-[3/4] flex items-center justify-center">
+                    <div className="relative w-full max-w-xs rounded-2xl shadow-2xl overflow-hidden aspect-[3/4] flex items-center justify-center" style={{ backgroundImage: cardGradient }}>
                         <div className="absolute inset-0 overflow-hidden pointer-events-none">
                             <div className="absolute top-8 left-8 w-12 h-12 rounded-full bg-purple-700/30"></div>
                             <div className="absolute bottom-12 right-8 w-8 h-8 rounded-full bg-purple-300/20"></div>

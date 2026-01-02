@@ -5,6 +5,7 @@ import { Gift, Trash2, Calendar, TrendingUp, Clock, CheckCircle, AlertCircle, Pe
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
+import RewardCard from '../../../components/RewardCard'
 
 export default function RewardsPage() {
     const router = useRouter()
@@ -29,21 +30,36 @@ export default function RewardsPage() {
 
     const loadRewards = () => {
         try {
-            // Load discount/coupon rewards from localStorage
             const discountRewards = JSON.parse(localStorage.getItem('discountRewards') || '[]')
+            const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
+
+            const merged = [...discountRewards]
+            scratchRewards.forEach(entry => {
+                if (!merged.find(r => r.id === entry.id)) {
+                    merged.push({
+                        id: entry.id,
+                        rewardType: entry.rewardType,
+                        discount: entry.discount,
+                        code: entry.code,
+                        amount: entry.crashcash || entry.bonusCrashcash || 0,
+                        bonusCrashcash: entry.bonusCrashcash || 0,
+                        earnedAt: entry.scratchedAt,
+                        scratchedAt: entry.scratchedAt,
+                        expiresAt: entry.expiresAt || entry.expiryDate,
+                        status: entry.status || 'active'
+                    })
+                }
+            })
             
-            // Filter and update status based on expiry
             const now = new Date()
-            const updatedRewards = discountRewards.map(reward => {
+            const updatedRewards = merged.map(reward => {
                 if (reward.expiresAt && new Date(reward.expiresAt) < now) {
                     return { ...reward, status: 'expired' }
                 }
                 return { ...reward, status: reward.status || 'active' }
             })
             
-            // Save back updated rewards
             localStorage.setItem('discountRewards', JSON.stringify(updatedRewards))
-            
             setRewards(updatedRewards)
         } catch (error) {
             console.error('Error loading rewards:', error)
@@ -165,7 +181,7 @@ export default function RewardsPage() {
 
                 {/* Filters */}
                 <div className="flex gap-3 mb-6 flex-wrap">
-                    {['all', 'active', 'used'].map(filterOption => (
+                    {['all', 'active', 'expired'].map(filterOption => (
                         <button
                             key={filterOption}
                             onClick={() => setFilter(filterOption)}
@@ -207,100 +223,34 @@ export default function RewardsPage() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.9 }}
                                     transition={{ delay: index * 0.05 }}
-                                    className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition relative overflow-hidden"
+                                    className="flex justify-center"
                                 >
-                                    {/* Decorative gradient */}
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl"></div>
-                                    
-                                    <div className="relative">
-                                        {/* Product Image */}
-                                        {reward.productImage && (
-                                            <div className="w-full h-40 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-slate-700 dark:to-slate-600 rounded-xl mb-4 relative overflow-hidden">
-                                                <Image
-                                                    src={reward.productImage}
-                                                    alt={reward.productName || 'Product'}
-                                                    fill
-                                                    className="object-contain p-4"
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Reward Amount */}
-                                        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl p-4 mb-4 text-center">
-                                            <p className="text-sm opacity-90">Reward Earned</p>
-                                            <p className="text-3xl font-bold">₹{reward.amount}</p>
-                                        </div>
-
-                                        {/* Product Name */}
-                                        {reward.productName && (
-                                            <h3 className="font-semibold text-slate-800 dark:text-white mb-2 text-center">
-                                                {reward.productName}
-                                            </h3>
-                                        )}
-
-                                        {/* Status Badge */}
-                                        <div className="flex justify-center mb-3">
-                                            {getStatusBadge(reward.status)}
-                                        </div>
-
-                                        {/* Coupon Code - Show if available */}
-                                        {reward.code && (
-                                            <div className="mb-3">
-                                                <p className="text-xs text-slate-600 dark:text-slate-400 mb-1 text-center">Coupon Code</p>
-                                                <div className="flex items-center gap-2 justify-center">
-                                                    <code className="bg-white dark:bg-slate-700 px-4 py-2 rounded-lg font-mono font-bold text-lg text-purple-600 dark:text-purple-400 border-2 border-dashed border-purple-300 dark:border-purple-600">
-                                                        {reward.code}
-                                                    </code>
-                                                    <button
-                                                        onClick={() => copyCode(reward.code)}
-                                                        className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition active:scale-95"
-                                                        title="Copy code"
-                                                    >
-                                                        <Tag size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Discount Percentage */}
-                                        {reward.discount && (
-                                            <div className="text-center mb-3">
-                                                <span className="inline-flex items-center gap-1 bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-full font-bold">
-                                                    <Percent size={16} />
-                                                    {reward.discount}% OFF
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        {/* Earned Date */}
-                                        <div className="text-sm text-slate-500 dark:text-slate-400 text-center flex items-center justify-center gap-2">
-                                            <Clock size={14} />
-                                            Earned: {reward.earnedAt ? new Date(reward.earnedAt).toLocaleDateString('en-IN', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                year: 'numeric'
-                                            }) : 'N/A'}
-                                        </div>
-
-                                        {/* Expiry Date */}
-                                        {reward.expiresAt && (
-                                            <div className="text-xs text-orange-600 dark:text-orange-400 text-center mt-1 flex items-center justify-center gap-1">
-                                                <Calendar size={12} />
-                                                Expires: {new Date(reward.expiresAt).toLocaleDateString('en-IN', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    year: 'numeric'
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {/* Used At */}
-                                        {reward.usedAt && (
-                                            <div className="text-xs text-slate-400 dark:text-slate-500 text-center mt-2">
-                                                Used on {new Date(reward.usedAt).toLocaleDateString('en-IN')}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <RewardCard
+                                        item={{
+                                            ...reward,
+                                            expiryDate: reward.expiresAt || reward.expiryDate,
+                                            amount: reward.amount || reward.bonusCrashcash || reward.crashcash || 0,
+                                            rewardType: reward.rewardType || (reward.discount ? 'discount' : 'crashcash')
+                                        }}
+                                        onCopy={() => copyCode(reward.code)}
+                                        onDelete={() => deleteReward(reward.id)}
+                                        onUse={() => {
+                                            if (reward.code) {
+                                                copyCode(reward.code)
+                                                router.push('/')
+                                            }
+                                        }}
+                                        isExpired={reward.status === 'expired'}
+                                        getTimeRemaining={(date) => {
+                                            if (!date) return 'No expiry'
+                                            const d = new Date(date)
+                                            const now = new Date()
+                                            if (d < now) return 'Expired'
+                                            const diff = d - now
+                                            const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+                                            return days > 0 ? `${days}d left` : 'Less than a day'
+                                        }}
+                                    />
                                 </motion.div>
                             ))}
                         </AnimatePresence>

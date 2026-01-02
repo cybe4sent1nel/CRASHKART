@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { sendOrderConfirmationWithInvoice } from '@/lib/email';
-import { getInvoiceAttachment } from '@/lib/invoiceGenerator';
 
 const prisma = new PrismaClient();
 
@@ -149,23 +148,27 @@ export async function POST(request) {
 
     // Send order confirmation email with invoice
     try {
-      // Generate invoice attachment
-      const invoiceAttachment = await getInvoiceAttachment(emailData);
-      console.log('Invoice generated successfully for order:', order.id);
-      
-      // Send confirmation email with invoice
-      await sendOrderConfirmationWithInvoice(user.email, emailData, invoiceAttachment, user.name);
-      console.log('Order confirmation email sent successfully to:', user.email);
-    } catch (emailError) {
-      console.error('Email/Invoice error:', emailError);
-      // Try sending email without invoice as fallback
+      // Generate invoice attachment (dynamic import to avoid bundling pdfkit/fontkit)
       try {
-        await sendOrderConfirmationEmail(user.email, emailData, user.name);
-        console.log('Order confirmation email sent without invoice to:', user.email);
-      } catch (fallbackError) {
-        console.error('Failed to send order confirmation email:', fallbackError);
-        // Don't fail the order creation if email fails
+        const { getInvoiceAttachment } = await import('@/lib/invoiceGenerator')
+        const invoiceAttachment = await getInvoiceAttachment(emailData)
+        console.log('Invoice generated successfully for order:', order.id)
+
+        // Send confirmation email with invoice
+        await sendOrderConfirmationWithInvoice(user.email, emailData, invoiceAttachment, user.name || order.address?.name || user.email.split('@')[0] || 'Customer')
+        console.log('Order confirmation email sent successfully to:', user.email)
+      } catch (invErr) {
+        console.warn('Could not generate/send PDF invoice (fallback to email without PDF):', invErr?.message || invErr)
+        try {
+          await sendOrderConfirmationWithInvoice(user.email, emailData, null, user.name || order.address?.name || user.email.split('@')[0] || 'Customer')
+          console.log('Order confirmation email sent without invoice to:', user.email)
+        } catch (fallbackErr) {
+          console.error('Failed to send order confirmation email without invoice:', fallbackErr)
+        }
       }
+    } catch (emailError) {
+      console.error('Email/Invoice error:', emailError)
+      // Don't fail the order creation if email fails
     }
 
     return NextResponse.json({

@@ -129,7 +129,7 @@ export default function Wishlist() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-center"
                 >
-                    <EmptyGhostAnimation width="250px" height="250px" />
+                    <EmptyGhostAnimation width="250px" height="250px" animationPath="/crying smoothymon.json" />
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mb-4 mt-2">
                         <Heart className="w-8 h-8 text-red-400" />
                     </div>

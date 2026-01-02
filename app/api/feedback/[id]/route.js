@@ -3,9 +3,8 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 // Update app feedback/review
-export async function PATCH(request, context) {
+export async function PATCH(request, { params }) {
     try {
-        const params = await context.params
         const { id } = params
         const { rating, message } = await request.json()
 
@@ -42,9 +41,8 @@ export async function PATCH(request, context) {
 }
 
 // Delete app feedback/review
-export async function DELETE(request, context) {
+export async function DELETE(request, { params }) {
     try {
-        const params = await context.params
         const { id } = params
 
         if (!id) {

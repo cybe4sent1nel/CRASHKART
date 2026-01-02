@@ -1,12 +1,56 @@
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 const prisma = new PrismaClient()
 
-// GET - Fetch user's available coupons
+// GET - Fetch user's available coupons or public coupons for a product
 export async function GET(req) {
     try {
+                const { authOptions } = await import('@/lib/auth')
+const { searchParams } = new URL(req.url)
+        const productId = searchParams.get('productId')
+        const publicOnly = searchParams.get('public') === 'true'
+        
+        // If productId is provided, fetch public coupons for that product
+        if (productId || publicOnly) {
+            console.log('🎫 Fetching public coupons for product:', productId)
+
+            const now = new Date()
+            const where = {
+                isActive: true,
+                isPublic: true,
+                expiresAt: {
+                    gt: now
+                }
+            }
+
+            // If productId provided, filter for product-specific coupons
+            if (productId) {
+                where.OR = [
+                    { applicableProducts: { isEmpty: true } }, // Universal coupons
+                    { applicableProducts: { has: productId } }  // Product-specific coupons
+                ]
+            }
+
+            const coupons = await prisma.coupon.findMany({
+                where,
+                orderBy: {
+                    discount: 'desc'
+                }
+            })
+
+            console.log(`✅ Found ${coupons.length} public coupons`)
+
+            return Response.json({
+                success: true,
+                coupons,
+                count: coupons.length
+            })
+        }
+        
+        // Otherwise, fetch user's personal coupons (requires auth)
         const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
@@ -55,7 +99,8 @@ export async function GET(req) {
 // POST - Assign coupon to user or apply coupon code
 export async function POST(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(
@@ -139,7 +184,8 @@ export async function POST(req) {
 // PATCH - Mark coupon as used
 export async function PATCH(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(

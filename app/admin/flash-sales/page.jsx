@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { Flame, Plus, Edit2, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, Gift } from 'lucide-react'
 import Link from 'next/link'
 
@@ -179,7 +180,9 @@ export default function FlashSalesPage() {
             discount: parseInt(sale.discount) || 10,
             maxQuantity: parseInt(sale.maxQuantity) || 100,
             startTime: new Date(sale.startTime).toISOString().slice(0, 16),
-            endTime: new Date(sale.endTime).toISOString().slice(0, 16)
+            endTime: new Date(sale.endTime).toISOString().slice(0, 16),
+            allowCoupons: Boolean(sale.allowCoupons),
+            allowCrashCash: Boolean(sale.allowCrashCash)
         })
         // Load product quantities from productQuantities or fall back to old format
         const quantities = sale.productQuantities || {}
@@ -201,7 +204,9 @@ export default function FlashSalesPage() {
             discount: 10,
             maxQuantity: 100,
             startTime: '',
-            endTime: ''
+            endTime: '',
+            allowCoupons: false,
+            allowCrashCash: false
         })
         setSelectedProducts({})
         setProductDiscounts({})

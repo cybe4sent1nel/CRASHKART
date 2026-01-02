@@ -164,15 +164,25 @@ export async function DELETE(request) {
     const deleteAll = searchParams.get('deleteAll') === 'true';
 
     if (deleteAll && userId) {
-      // Delete all read notifications for user
-      await prisma.notification.deleteMany({
-        where: { userId, isRead: true },
-      });
+      // Resolve actual user id (handle GoogleId/email stored in localStorage)
+      let actualUserId = userId
+      try {
+        const userRec = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+        if (userRec) actualUserId = userRec.id
+        else {
+          const userFirst = await prisma.user.findFirst({ where: { OR: [{ googleId: userId }, { email: userId }] }, select: { id: true } })
+          if (userFirst) actualUserId = userFirst.id
+        }
+      } catch (e) {
+        // fallback: attempt to find by googleId or email
+        const userFirst = await prisma.user.findFirst({ where: { OR: [{ googleId: userId }, { email: userId }] }, select: { id: true } })
+        if (userFirst) actualUserId = userFirst.id
+      }
 
-      return NextResponse.json({
-        success: true,
-        message: 'All read notifications deleted',
-      });
+      // Delete all read notifications for resolved user id
+      await prisma.notification.deleteMany({ where: { userId: actualUserId, isRead: true } })
+
+      return NextResponse.json({ success: true, message: 'All read notifications deleted' })
     }
 
     if (!notificationId) {

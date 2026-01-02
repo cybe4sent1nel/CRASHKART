@@ -1,12 +1,14 @@
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
 import { sendOrderConfirmationWithInvoice } from '@/lib/email'
-import { getInvoiceAttachment } from '@/lib/invoiceGenerator'
+import { verifyUserToken } from '@/lib/authTokens'
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 export async function PUT(req, { params }) {
     try {
-        // Await params first (Next.js 15 requirement)
-        const resolvedParams = await params
+        // Next.js 15: params is already resolved
+        const resolvedParams = params
         const orderId = resolvedParams.orderId
         
         const authHeader = req.headers.get('authorization')
@@ -19,14 +21,11 @@ export async function PUT(req, { params }) {
         }
 
         const token = authHeader.slice(7)
-        let userEmail
+        let userId
         
         try {
-            const decoded = jwt.verify(
-                token,
-                process.env.JWT_SECRET || 'your-secret-key'
-            )
-            userEmail = decoded.email
+            const verified = await verifyUserToken(token)
+            userId = verified.user.id
         } catch (err) {
             return Response.json(
                 { message: 'Invalid token' },
@@ -45,7 +44,7 @@ export async function PUT(req, { params }) {
 
         // Get user
         const user = await prisma.user.findUnique({
-            where: { email: userEmail }
+            where: { id: userId }
         })
 
         if (!user) {
@@ -71,6 +70,18 @@ export async function PUT(req, { params }) {
         // This allows payment status to be confirmed when user lands on success page
 
         // Update order payment status
+        const validStatuses = new Set([
+            'ORDER_PLACED',
+            'PROCESSING',
+            'SHIPPED',
+            'DELIVERED',
+            'PAYMENT_PENDING',
+            'CANCELLED',
+            'RETURN_ACCEPTED',
+            'RETURN_PICKED_UP',
+            'REFUND_COMPLETED'
+        ])
+
         const updateData = {
             isPaid: isPaid === true,
             paymentMethod: paymentMethod || order.paymentMethod,
@@ -82,8 +93,8 @@ export async function PUT(req, { params }) {
             })
         }
 
-        // Update status if provided
-        if (status) {
+        // Only accept valid enum values for status
+        if (status && validStatuses.has(status)) {
             updateData.status = status
         }
 
@@ -135,30 +146,96 @@ export async function PUT(req, { params }) {
                     orderDate: updatedOrder.createdAt
                 }
 
-                // Generate invoice
-                const invoiceAttachment = await getInvoiceAttachment(invoiceData)
-                
-                // Send email with invoice
-                await sendOrderConfirmationWithInvoice(
-                    updatedOrder.user.email,
-                    {
-                        orderId: updatedOrder.id,
-                        items: updatedOrder.orderItems.map(item => ({
-                            name: item.product?.name || 'Product',
-                            quantity: item.quantity,
-                            price: item.price,
-                            images: item.product?.images || []
-                        })),
-                        subtotal: updatedOrder.total,
-                        discount: 0,
-                        total: updatedOrder.total,
-                        paymentMethod: updatedOrder.paymentMethod,
-                        isPaid: true,
-                        address: updatedOrder.address
-                    },
-                    invoiceAttachment,
-                    updatedOrder.user.name || updatedOrder.user.email.split('@')[0]
-                )
+                // In development, skip dynamic PDF generation to avoid heavy native libs being bundled
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('📄 Dev mode: skipping PDF invoice generation and sending confirmation without attachment')
+                    try {
+                        await sendOrderConfirmationWithInvoice(
+                            updatedOrder.user.email,
+                            {
+                                orderId: updatedOrder.id,
+                                items: updatedOrder.orderItems.map(item => ({
+                                    name: item.product?.name || 'Product',
+                                    quantity: item.quantity,
+                                    price: item.price,
+                                    images: item.product?.images || []
+                                })),
+                                subtotal: updatedOrder.total,
+                                discount: 0,
+                                total: updatedOrder.total,
+                                paymentMethod: updatedOrder.paymentMethod,
+                                isPaid: true,
+                                address: updatedOrder.address
+                            },
+                            null,
+                            updatedOrder.user.name || updatedOrder.address?.name || updatedOrder.user.email.split('@')[0] || 'Customer'
+                        )
+                    } catch (emailFallbackErr) {
+                        console.error('Failed to send order confirmation without invoice:', emailFallbackErr)
+                    }
+                } else {
+                    // Production: generate PDF via Puppeteer invoice generator
+                        try {
+                            const { generateInvoicePdf } = await import('@/lib/invoicePuppeteer')
+                            const pdf = await generateInvoicePdf({
+                                orderId: updatedOrder.id,
+                                customerName: updatedOrder.user.name || updatedOrder.address?.name || updatedOrder.user.email.split('@')[0] || 'Customer',
+                                customerEmail: updatedOrder.user.email,
+                                items: updatedOrder.orderItems.map(item => ({ name: item.product?.name || 'Product', quantity: item.quantity, price: item.price, images: item.product?.images || [] })),
+                                subtotal: updatedOrder.total,
+                                total: updatedOrder.total,
+                                paymentMethod: updatedOrder.paymentMethod,
+                                address: updatedOrder.address
+                            }, { type: 'order' })
+
+                            await sendOrderConfirmationWithInvoice(
+                                updatedOrder.user.email,
+                                {
+                                    orderId: updatedOrder.id,
+                                    items: updatedOrder.orderItems.map(item => ({
+                                        name: item.product?.name || 'Product',
+                                        quantity: item.quantity,
+                                        price: item.price,
+                                        images: item.product?.images || []
+                                    })),
+                                    subtotal: updatedOrder.total,
+                                    discount: 0,
+                                    total: updatedOrder.total,
+                                    paymentMethod: updatedOrder.paymentMethod,
+                                    isPaid: true,
+                                    address: updatedOrder.address
+                                },
+                                pdf,
+                                updatedOrder.user.name || updatedOrder.address?.name || updatedOrder.user.email.split('@')[0] || 'Customer'
+                            )
+                        } catch (invoiceErr) {
+                            console.warn('Could not generate/send PDF invoice (fallback to HTML email):', invoiceErr?.message || invoiceErr)
+                            try {
+                                await sendOrderConfirmationWithInvoice(
+                                    updatedOrder.user.email,
+                                    {
+                                        orderId: updatedOrder.id,
+                                        items: updatedOrder.orderItems.map(item => ({
+                                            name: item.product?.name || 'Product',
+                                            quantity: item.quantity,
+                                            price: item.price,
+                                            images: item.product?.images || []
+                                        })),
+                                        subtotal: updatedOrder.total,
+                                        discount: 0,
+                                        total: updatedOrder.total,
+                                        paymentMethod: updatedOrder.paymentMethod,
+                                        isPaid: true,
+                                        address: updatedOrder.address
+                                    },
+                                    null,
+                                    updatedOrder.user.name || updatedOrder.user.email.split('@')[0]
+                                )
+                            } catch (emailFallbackErr) {
+                                console.error('Failed to send order confirmation without invoice:', emailFallbackErr)
+                            }
+                        }
+                }
                 
                 console.log('✅ Order confirmation email sent successfully to:', updatedOrder.user.email)
             } catch (emailError) {

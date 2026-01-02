@@ -1,11 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 export async function GET(req, { params }) {
     try {
-        const session = await getServerSession(authOptions)
-        const { orderId } = await params
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
+        const { orderId } = params
 
         if (!orderId) {
             return Response.json(
@@ -40,9 +42,12 @@ export async function GET(req, { params }) {
                 where: { email: session.user.email }
             })
 
+            // Check if user is admin from database (dynamic import)
+            const { isAdmin } = await import('@/lib/adminAuth')
+            const userIsAdmin = await isAdmin(session.user.email)
+            
             // Allow access if user owns the order OR is admin
-            const isAdmin = user?.isAdmin === true || session.user.email === 'crashkart.help@gmail.com'
-            if (user && order.userId !== user.id && !isAdmin) {
+            if (user && order.userId !== user.id && !userIsAdmin) {
                 return Response.json(
                     { message: 'Unauthorized' },
                     { status: 403 }
@@ -50,12 +55,36 @@ export async function GET(req, { params }) {
             }
         }
 
+        // Compute accurate subtotal from items and discount
+        const computedSubtotal = order.orderItems.reduce((s, it) => s + ((it.price || 0) * (it.quantity || 1)), 0)
+        const discountAmount = Math.max(0, computedSubtotal - (order.total || 0))
+
+        // Parse notes where delivery/fee breakdown may be stored
+        let notes = {}
+        try {
+                    const { authOptions } = await import('@/lib/auth')
+notes = JSON.parse(order.notes || '{}')
+        } catch (e) {
+            notes = {}
+        }
+
+        const deliveryCharge = Number(notes.deliveryCharge ?? notes.delivery ?? 0)
+        const shippingFee = Number(notes.shippingFee ?? notes.shipping ?? notes.baseShipping ?? 0)
+        const convenienceFee = Number(notes.convenienceFee ?? notes.convenience ?? 0)
+        const platformFee = Number(notes.platformFee ?? notes.platform ?? 0)
+        const originalTotal = Number(notes.originalTotal ?? notes.serverSubtotal ?? computedSubtotal)
+
         // Format order for frontend
         const formattedOrder = {
             id: order.id,
             total: order.total,
-            subtotal: order.total + (order.coupon ? 50 : 0), // Rough estimate
-            discount: 0,
+            subtotal: computedSubtotal,
+            discount: discountAmount,
+            deliveryCharge: deliveryCharge,
+            shippingFee: shippingFee,
+            convenienceFee: convenienceFee,
+            platformFee: platformFee,
+            originalTotal: originalTotal,
             status: order.status,
             createdAt: order.createdAt,
             paymentMethod: order.paymentMethod,

@@ -190,7 +190,8 @@ export async function POST(request) {
             return NextResponse.json({
                 success: true,
                 userId: otpSession.userId,
-                message: `OTP sent to ${contact}`,
+                message: user ? 'Account already exists. OTP sent for login.' : `OTP sent to ${contact}`,
+                alreadyExists: Boolean(user),
                 // In demo mode, return OTP for display
                 ...(DEMO_MODE && { demoOtp: otp })
             });

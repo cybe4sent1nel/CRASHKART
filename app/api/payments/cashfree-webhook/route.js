@@ -1,7 +1,6 @@
 import crypto from 'crypto'
 import { PrismaClient } from '@prisma/client'
 import { sendOrderConfirmationWithInvoice } from '@/lib/email'
-import { getInvoiceAttachment } from '@/lib/invoiceGenerator'
 import { sendOrderPlacedEmail } from '@/lib/emailService'
 
 const prisma = new PrismaClient()
@@ -154,25 +153,54 @@ export async function POST(req) {
                 const order = orders[0]
                 console.log('  Updating order:', order.id)
                 console.log('  Current payment method:', order.paymentMethod)
+                console.log('  Already paid?:', order.isPaid)
                 
-                // Only mark as paid if it's an online payment (not COD)
-                // Cashfree webhook is for online payments: Card, UPI, Net Banking, Wallets
-                const shouldMarkPaid = order.paymentMethod !== 'COD'
+                // Parse existing notes to check if this is a retry/payment conversion
+                let existingNotes = {}
+                try {
+                    existingNotes = JSON.parse(order.notes || '{}')
+                } catch (e) {
+                    existingNotes = {}
+                }
+
+                // Also check if CrashCash rewards already exist for this order (defensive)
+                let existingCrashCashRecords = []
+                try {
+                    existingCrashCashRecords = await prisma.crashCashReward.findMany({ where: { orderId: order.id } })
+                } catch (e) {
+                    console.warn('  Could not query crashCashReward records:', e.message)
+                    existingCrashCashRecords = []
+                }
+
+                const isRetryPayment = !!(
+                    existingNotes.retryAt ||
+                    existingNotes.crashCashReward ||
+                    (existingCrashCashRecords && existingCrashCashRecords.length > 0)
+                )
+
+                console.log('  Is retry/payment conversion or already rewarded?:', isRetryPayment)
                 
-                console.log('  Should mark as paid?', shouldMarkPaid)
-                
-                // Update order to mark as paid (only for online payments)
+                // Always mark as paid when Cashfree confirms payment
+                // This handles both new orders and COD orders converted to online payment
                 const updatedOrder = await prisma.order.update({
                     where: { id: order.id },
                     data: {
-                        isPaid: shouldMarkPaid, // Only mark paid for online payments
+                        isPaid: true, // Always mark as paid on payment success
+                        paymentMethod: order.paymentMethod === 'COD' ? 'CASHFREE' : order.paymentMethod, // Update payment method if converted from COD
                         status: 'ORDER_PLACED',
                         notes: JSON.stringify({
-                            ...JSON.parse(order.notes || '{}'),
+                            ...existingNotes,
                             cashfreePaymentId: payment_id,
                             paymentMethod: payment_group || 'online',
-                            paidAt: shouldMarkPaid ? new Date().toISOString() : undefined,
-                            webhookProcessedAt: new Date().toISOString()
+                            paidAt: new Date().toISOString(),
+                            webhookProcessedAt: new Date().toISOString(),
+                            convertedFromCOD: order.paymentMethod === 'COD',
+                            // Mark that payment was received so frontend can avoid showing scratchcards again
+                            paymentReceived: true,
+                            paymentReceivedAt: new Date().toISOString(),
+                            // In case the order originally showed a scratchcard, explicitly mark it so UI will skip
+                            scratchCardShown: existingNotes.scratchCardShown || existingNotes.crashCashReward ? true : false,
+                            skipScratchCard: existingNotes.scratchCardShown || existingNotes.crashCashReward ? true : false
                         })
                     }
                 })
@@ -180,16 +208,18 @@ export async function POST(req) {
                 console.log('  ✅ Order updated - isPaid:', updatedOrder.isPaid)
 
                 // Calculate and add CrashCash reward to user's account
-                try {
-                    console.log('  💰 Processing CrashCash reward...')
-                    
-                    // Get product details to determine min/max CrashCash values
-                    const orderItems = await prisma.orderItem.findMany({
-                        where: { orderId: order.id },
-                        include: {
-                            product: true
-                        }
-                    })
+                // Skip if this is a retry payment or CrashCash already exists for this order
+                if (!isRetryPayment) {
+                    try {
+                        console.log('  💰 Processing CrashCash reward...')
+                        
+                        // Get product details to determine min/max CrashCash values
+                        const orderItems = await prisma.orderItem.findMany({
+                            where: { orderId: order.id },
+                            include: {
+                                product: true
+                            }
+                        })
                     
                     let totalCrashCashReward = 0
                     const rewardDetails = []
@@ -215,29 +245,16 @@ export async function POST(req) {
                     }
                     
                     if (totalCrashCashReward > 0) {
-                        // Update user's CrashCash balance
-                        const updatedUser = await prisma.user.update({
-                            where: { id: order.userId },
-                            data: {
-                                crashCashBalance: {
-                                    increment: totalCrashCashReward
-                                }
-                            }
-                        })
-                        
-                        // Create reward records for each product (for rewards page display)
+                        // Create reward records and increment user's balance using helper
+                        const { createCrashCashReward } = await import('@/lib/rewards')
                         for (const detail of rewardDetails) {
-                            await prisma.crashCashReward.create({
-                                data: {
-                                    userId: order.userId,
-                                    orderId: order.id,
-                                    amount: detail.totalReward,
-                                    source: 'order_placed',
-                                    productName: detail.productName,
-                                    productImage: orderItems.find(i => i.name === detail.productName)?.image || null,
-                                    status: 'active',
-                                    earnedAt: new Date()
-                                }
+                            await createCrashCashReward({
+                                userId: order.userId,
+                                orderId: order.id,
+                                amount: detail.totalReward,
+                                source: 'order_placed',
+                                productName: detail.productName,
+                                productImage: orderItems.find(i => i.name === detail.productName)?.image || null
                             })
                         }
                         
@@ -255,36 +272,26 @@ export async function POST(req) {
                         })
                         
                         console.log(`  ✅ CrashCash reward added: ₹${totalCrashCashReward}`)
-                        console.log(`  💳 User's new balance: ₹${updatedUser.crashCashBalance}`)
                     }
-                } catch (crashCashError) {
-                    console.error('  ❌ Failed to add CrashCash reward:', crashCashError.message)
-                    console.error('  CrashCash error stack:', crashCashError.stack)
-                    // Don't fail the webhook if CrashCash fails
+                    } catch (crashCashError) {
+                        console.error('  ❌ Failed to add CrashCash reward:', crashCashError.message)
+                        console.error('  CrashCash error stack:', crashCashError.stack)
+                        // Don't fail the webhook if CrashCash fails
+                    }
+                } else {
+                    console.log('  ⏭️  Skipping CrashCash reward - already given or this is a repayment/conversion')
                 }
 
-                // Send order placed email with beautiful template
-                try {
-                    console.log('  📧 Attempting to send order placed email...')
-                    await sendOrderPlacedEmail({
-                        order: updatedOrder,
-                        customerEmail: order.user.email,
-                        customerName: order.user.name || order.user.email.split('@')[0]
-                    })
-                    console.log('  ✅ Order placed email sent successfully to:', order.user.email)
-                } catch (emailError) {
-                    console.error('  ❌ Failed to send order placed email:', emailError.message)
-                    console.error('  Email error stack:', emailError.stack)
-                    // Don't fail the webhook if email fails
-                }
-
-                // Send order confirmation email with invoice
+                // Send order confirmation email with invoice (single authoritative email to avoid duplicates)
                 try {
                     const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/track/${order.id}`
                     
+                    // Get customer name from user, address, or email
+                    const customerName = order.user.name || order.address?.name || order.user.email.split('@')[0]
+                    
                     const orderData = {
                         orderId: order.id,
-                        customerName: order.user.name || order.user.email.split('@')[0],
+                        customerName: customerName,
                         customerEmail: order.user.email,
                         customerPhone: order.address.phone,
                         items: order.orderItems.map(item => ({
@@ -313,22 +320,48 @@ export async function POST(req) {
                         trackingLink: trackingLink
                     }
                     
-                    // Generate invoice attachment
-                    const invoiceAttachment = await getInvoiceAttachment(orderData)
-                    
-                    console.log('📧 Sending order confirmation email to:', order.user.email)
-                    await sendOrderConfirmationWithInvoice(
-                        order.user.email, 
-                        orderData, 
-                        invoiceAttachment,
-                        order.user.name || order.user.email.split('@')[0]
-                    )
-                    console.log('✅ Order confirmation email sent successfully')
-                } catch (emailError) {
-                    console.error('❌ Failed to send confirmation email:', emailError.message)
-                    console.error('Email error stack:', emailError.stack)
-                    // Don't fail the webhook if email fails
+                // Generate invoice attachment: prefer Puppeteer PDF generator, fall back to existing generators
+                let invoiceAttachment = null
+
+                try {
+                    const ppMod = await import('@/lib/invoicePuppeteer')
+                    const generateInvoicePdf = ppMod?.generateInvoicePdf || ppMod?.default?.generateInvoicePdf || ppMod?.default
+                    if (typeof generateInvoicePdf === 'function') {
+                        console.log('🖨️ Generating invoice PDF via Puppeteer...')
+                        const pdfBuffer = await generateInvoicePdf(orderData, { type: 'order' })
+                        if (pdfBuffer) {
+                            invoiceAttachment = { filename: `Invoice-${order.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }
+                            console.log('🖨️ Puppeteer PDF generated')
+                        }
+                    }
+                } catch (ppErr) {
+                    console.warn('Puppeteer invoice generation failed or unavailable:', ppErr?.message || ppErr)
                 }
+
+                // Fallback to existing generator (PDFKit or HTML) if Puppeteer didn't produce a PDF
+                if (!invoiceAttachment) {
+                    try {
+                        const { getInvoiceAttachment } = await import('@/lib/invoiceGenerator')
+                        invoiceAttachment = await getInvoiceAttachment(orderData)
+                        console.log('📄 Invoice generated via fallback generator')
+                    } catch (genErr) {
+                        console.warn('Fallback invoice generator failed:', genErr?.message || genErr)
+                    }
+                }
+
+                console.log('📧 Sending order confirmation email to:', order.user.email)
+                await sendOrderConfirmationWithInvoice(
+                    order.user.email,
+                    orderData,
+                    invoiceAttachment,
+                    order.user.name || order.address?.name || order.user.email.split('@')[0] || 'Customer'
+                )
+                console.log('✅ Order confirmation email sent successfully')
+            } catch (emailError) {
+                console.error('❌ Failed to send confirmation email:', emailError.message)
+                console.error('Email error stack:', emailError.stack)
+                // Don't fail the webhook if email fails
+            }
 
                 console.log('🎉 Webhook processing completed successfully for order:', order.id)
                 return Response.json({ message: 'Webhook processed successfully', orderId: order.id }, { status: 200 })

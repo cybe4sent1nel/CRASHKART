@@ -14,7 +14,8 @@
  */
 
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 export async function POST(req) {
     return Response.json(

@@ -45,14 +45,6 @@ export async function POST(request) {
       });
     }
 
-    // Check if user signed up with Google (no password)
-    if (user.loginMethod === 'google' && !user.password) {
-      return NextResponse.json({
-        success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.'
-      });
-    }
-
     // Generate secure reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');

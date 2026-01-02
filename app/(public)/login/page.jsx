@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mail, Phone, Chrome, Loader } from 'lucide-react'
+import { Mail, Phone, Chrome, Loader, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Swal from 'sweetalert2'
 import { signIn } from 'next-auth/react'
@@ -20,6 +20,19 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [resendTimer, setResendTimer] = useState(0)
+  const [canResend, setCanResend] = useState(false)
+
+  // Countdown for resend OTP
+  useEffect(() => {
+    if (step !== 'otp') return
+    if (resendTimer <= 0) {
+      setCanResend(true)
+      return
+    }
+    const t = setTimeout(() => setResendTimer((prev) => prev - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendTimer, step])
 
   const handleChooseEmail = () => {
     setStep('email')
@@ -68,6 +81,9 @@ export default function Login() {
 
       setUserId(data.userId)
       setStep('otp')
+      setOtp(['', '', '', '', '', ''])
+      setResendTimer(120)
+      setCanResend(false)
 
       if (data.demoOtp) {
         Swal.fire({
@@ -119,6 +135,9 @@ export default function Login() {
 
       setUserId(data.userId)
       setStep('otp')
+      setOtp(['', '', '', '', '', ''])
+      setResendTimer(120)
+      setCanResend(false)
 
       if (data.demoOtp) {
         Swal.fire({
@@ -134,6 +153,43 @@ export default function Login() {
     } catch (err) {
       setError(err.message || 'Something went wrong')
       toast.error(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    if (loading || !method) return
+
+    try {
+      setLoading(true)
+      setError('')
+
+      const payload =
+        method === 'email'
+          ? { email: identifier, method: 'email' }
+          : { phone: `+91${identifier}`, method: 'whatsapp' }
+
+      const response = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend OTP')
+      }
+
+      setUserId(data.userId)
+      setOtp(['', '', '', '', '', ''])
+      setResendTimer(120)
+      setCanResend(false)
+
+      toast.success(`OTP re-sent to your ${method === 'email' ? 'email' : 'WhatsApp'}`)
+    } catch (err) {
+      setError(err.message || 'Failed to resend OTP')
+      toast.error(err.message || 'Failed to resend OTP')
     } finally {
       setLoading(false)
     }
@@ -213,8 +269,23 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify(data.user))
       localStorage.setItem('token', data.token)
 
+      // ✅ Sync CrashCash balance from database
+      if (data.user && data.user.id) {
+        try {
+          const balResp = await fetch(`/api/crashcash/balance?userId=${data.user.id}`)
+          if (balResp.ok) {
+            const balData = await balResp.json()
+            localStorage.setItem('crashCashBalance', (balData.balance || 0).toString())
+            console.log(`✅ CrashCash balance synced on login: ₹${balData.balance}`)
+          }
+        } catch (balError) {
+          console.error('Failed to sync balance:', balError)
+        }
+      }
+
       window.dispatchEvent(new Event('storage'))
       window.dispatchEvent(new Event('profileUpdated'))
+      window.dispatchEvent(new Event('crashcash-update'))
 
       toast.success('Login successful!')
 
@@ -444,6 +515,24 @@ export default function Login() {
                 <p className="text-xs text-center text-[rgba(0,2,65,0.6)] mt-2">
                   We sent a 6-digit code to your {method === 'email' ? 'email' : 'WhatsApp'}
                 </p>
+                <div className="mt-3 text-center">
+                  {!canResend ? (
+                    <p className="text-[rgba(0,2,65,0.7)] text-sm">
+                      Didn't receive OTP? Resend in{' '}
+                      <span className="font-semibold text-[rgb(0,2,65)]">{resendTimer}s</span>
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={loading}
+                      className="inline-flex items-center justify-center gap-2 text-[rgb(0,2,65)] font-semibold hover:text-red-600 disabled:opacity-60"
+                    >
+                      <RotateCcw size={16} />
+                      Resend OTP
+                    </button>
+                  )}
+                </div>
               </div>
 
               <button

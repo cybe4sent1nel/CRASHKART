@@ -16,7 +16,14 @@ export default function ProductQuickView({ product, isOpen, onClose }) {
 
     if (!product) return null
 
-    const handleAddToCart = () => {
+    const handleAddToCart = async () => {
+        try {
+            const mod = await import('@/lib/cartOverrides')
+            const CartOverrides = mod.CartOverrides || mod.default
+            CartOverrides.set(product.id, { salePrice: product.salePrice || product.price, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+        } catch (e) {
+            console.warn('cart override set failed', e)
+        }
         dispatch(addToCart({ 
             productId: product.id, 
             quantity 

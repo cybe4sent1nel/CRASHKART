@@ -103,16 +103,32 @@ export async function POST(request) {
       code,
       description,
       discount,
+      couponType = 'percentage',
+      appliesToCharges = [],
+      waiveAllCharges = false,
+      minOrderValue,
+      maxDiscount,
+      applicableProducts = [],
       forNewUser = false,
       forMember = false,
       isPublic = true,
+      isActive = true,
+      usageLimit,
+      perUserLimit,
       expiresAt
     } = body;
 
     // Validate required fields
-    if (!code || !description || discount === undefined || !expiresAt) {
+    if (!code || !description || !expiresAt) {
       return NextResponse.json({ 
-        error: 'Code, description, discount, and expiry date are required' 
+        error: 'Code, description, and expiry date are required' 
+      }, { status: 400 });
+    }
+
+    // Validate discount for non-freeDelivery coupons
+    if (couponType !== 'freeDelivery' && (discount === undefined || discount === null)) {
+      return NextResponse.json({ 
+        error: 'Discount is required for percentage and flat coupons' 
       }, { status: 400 });
     }
 
@@ -126,19 +142,36 @@ export async function POST(request) {
     }
 
     // Validate discount
-    if (discount < 0 || discount > 100) {
-      return NextResponse.json({ error: 'Discount must be between 0 and 100' }, { status: 400 });
+    if (couponType === 'percentage' && (discount < 0 || discount > 100)) {
+      return NextResponse.json({ error: 'Percentage discount must be between 0 and 100' }, { status: 400 });
     }
+
+    // If UI sent a convenience `waiveAllCharges` flag, expand it into the
+    // canonical `appliesToCharges` array used by server logic/storage.
+    // This keeps the UI ergonomic while storing only the supported field.
+    const finalAppliesToCharges = waiveAllCharges
+      ? ['shipping', 'convenience', 'platform']
+      : (appliesToCharges || []);
 
     // Create coupon
     const coupon = await prisma.coupon.create({
       data: {
         code: code.toUpperCase(),
         description,
-        discount: parseFloat(discount),
+        discount: couponType === 'freeDelivery' ? 0 : parseFloat(discount),
+        couponType,
+        minOrderValue: minOrderValue ? parseFloat(minOrderValue) : null,
+        maxDiscount: maxDiscount ? parseFloat(maxDiscount) : null,
+        applicableProducts: applicableProducts || [],
+        appliesToCharges: finalAppliesToCharges,
+        waiveAllCharges: Array.isArray(finalAppliesToCharges) && ['shipping','convenience','platform'].every(k=>finalAppliesToCharges.includes(k)),
         forNewUser,
         forMember,
         isPublic,
+        isActive,
+        usageLimit: usageLimit ? parseInt(usageLimit) : null,
+        perUserLimit: perUserLimit ? parseInt(perUserLimit) : null,
+        usedCount: 0,
         expiresAt: new Date(expiresAt)
       }
     });
@@ -187,9 +220,44 @@ export async function PUT(request) {
       updateData.expiresAt = new Date(updateData.expiresAt);
     }
 
+    // Ensure numeric fields are parsed
+    if (updateData.usageLimit !== undefined) updateData.usageLimit = updateData.usageLimit ? parseInt(updateData.usageLimit) : null
+    if (updateData.perUserLimit !== undefined) updateData.perUserLimit = updateData.perUserLimit ? parseInt(updateData.perUserLimit) : null
+    if (updateData.appliesToCharges !== undefined) updateData.appliesToCharges = updateData.appliesToCharges || []
+
+    // Support UI convenience flag `waiveAllCharges` by expanding it into the
+    // persisted `appliesToCharges` array. Also persist the `waiveAllCharges`
+    // boolean for faster filtering/queries (kept in sync with appliesToCharges).
+    if (updateData.waiveAllCharges) {
+      updateData.appliesToCharges = ['shipping', 'convenience', 'platform'];
+      updateData.waiveAllCharges = true;
+    }
+
+    // If client provided an explicit appliesToCharges array, compute the
+    // corresponding waiveAllCharges boolean so both fields remain consistent.
+    if (updateData.appliesToCharges !== undefined) {
+      const arr = updateData.appliesToCharges || [];
+      updateData.waiveAllCharges = ['shipping','convenience','platform'].every(k=>arr.includes(k));
+    }
+
+    // Whitelist only fields that exist on the Prisma `Coupon` model to avoid
+    // PrismaClientValidationError when client sends UI-only flags.
+    const allowedFields = [
+      'code', 'description', 'discount', 'couponType', 'minOrderValue', 'maxDiscount',
+      'applicableProducts', 'appliesToCharges', 'waiveAllCharges', 'forNewUser', 'forMember', 'isPublic',
+      'isActive', 'usageLimit', 'perUserLimit', 'expiresAt'
+    ];
+
+    const sanitizedData = {};
+    for (const key of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(updateData, key)) {
+        sanitizedData[key] = updateData[key];
+      }
+    }
+
     const coupon = await prisma.coupon.update({
       where: { id },
-      data: updateData
+      data: sanitizedData
     });
 
     return NextResponse.json({
@@ -208,7 +276,17 @@ export async function PUT(request) {
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    let id = searchParams.get('id');
+
+    // Support clients that send JSON body with { id } (some fetch callers do this)
+    if (!id) {
+      try {
+        const body = await request.json();
+        if (body && body.id) id = body.id;
+      } catch (e) {
+        // ignore parse errors - we'll handle missing id below
+      }
+    }
 
     if (!id) {
       return NextResponse.json({ error: 'Coupon ID required' }, { status: 400 });

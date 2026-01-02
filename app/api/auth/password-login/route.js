@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { generateUserToken } from '@/lib/authTokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +24,8 @@ export async function POST(request) {
     try {
         const { email, phone, password } = await request.json();
 
+        const normalizedEmail = email ? email.toLowerCase().trim() : null;
+
         if (!password) {
             return NextResponse.json(
                 { success: false, error: 'Password is required' },
@@ -31,7 +33,7 @@ export async function POST(request) {
             );
         }
 
-        if (!email && !phone) {
+        if (!normalizedEmail && !phone) {
             return NextResponse.json(
                 { success: false, error: 'Email or phone is required' },
                 { status: 400 }
@@ -40,9 +42,9 @@ export async function POST(request) {
 
         // Find user by email or phone
         let user = null;
-        if (email) {
+        if (normalizedEmail) {
             user = await client.user.findUnique({
-                where: { email: email.toLowerCase() }
+                where: { email: normalizedEmail }
             });
         } else if (phone) {
             user = await client.user.findUnique({
@@ -75,15 +77,7 @@ export async function POST(request) {
         }
 
         // Generate JWT token
-        const token = jwt.sign(
-            {
-                userId: user.id,
-                email: user.email,
-                phone: user.phone
-            },
-            process.env.JWT_SECRET || 'your-secret-key',
-            { expiresIn: '30d' }
-        );
+        const token = generateUserToken(user)
 
         // Return user data (excluding password)
         const { password: _, ...userWithoutPassword } = user;

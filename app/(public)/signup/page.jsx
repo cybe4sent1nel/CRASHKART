@@ -527,13 +527,23 @@ export default function Signup() {
       localStorage.setItem('user', JSON.stringify(data.user))
       localStorage.setItem('token', data.token)
 
-      if (data.isNewUser && data.newUserBonus > 0) {
-        const { addUserCrashCash } = await import('@/lib/userCrashcashUtils')
-        addUserCrashCash(data.user.email, data.newUserBonus, 365, 'signup_bonus')
+      // ✅ Sync CrashCash balance from database (bonus already added by API)
+      if (data.user && data.user.id) {
+        try {
+          const balResp = await fetch(`/api/crashcash/balance?userId=${data.user.id}`)
+          if (balResp.ok) {
+            const balData = await balResp.json()
+            localStorage.setItem('crashCashBalance', (balData.balance || 0).toString())
+            console.log(`✅ CrashCash balance synced: ₹${balData.balance}`)
+          }
+        } catch (balError) {
+          console.error('Failed to sync balance:', balError)
+        }
       }
 
       window.dispatchEvent(new Event('storage'))
       window.dispatchEvent(new Event('profileUpdated'))
+      window.dispatchEvent(new Event('crashcash-update'))
 
       if (data.isNewUser && data.newUserBonus > 0) {
         Swal.fire({

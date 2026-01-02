@@ -3,53 +3,8 @@ import { useSession } from 'next-auth/react'
 import { useEffect } from 'react'
 import { initializeUserProfile } from '@/lib/userDataStorage'
 
-export default function AuthSync() {
-    const { data: session, status } = useSession()
-
-    useEffect(() => {
-        if (status === 'authenticated' && session?.user) {
-            // Get existing user data from localStorage
-            const existingUser = localStorage.getItem('user')
-            let userData = existingUser ? JSON.parse(existingUser) : {}
-            
-            // Merge session data with existing data
-            const updatedUser = {
-                ...userData,
-                id: session.user.id || session.user.email,
-                name: session.user.name || userData.name || '',
-                email: session.user.email || userData.email || '',
-                image: session.user.image || userData.image || '',
-                provider: session.user.provider || 'google',
-                isProfileSetup: true
-            }
-            
-            // Save to localStorage
-            localStorage.setItem('user', JSON.stringify(updatedUser))
-            
-            // Initialize user profile data storage
-            if (updatedUser.email) {
-                initializeUserProfile(updatedUser.email, updatedUser)
-            }
-            
-            // Sync profile with database (especially for Google OAuth images)
-            if (session.user.image || session.user.name) {
-                syncProfileToDatabase(
-                    session.user.email,
-                    session.user.image,
-                    session.user.name
-                )
-            }
-            
-            // Dispatch events to notify other components
-            window.dispatchEvent(new Event('storage'))
-            window.dispatchEvent(new Event('profileUpdated'))
-            
-            console.log('Auth synced: User profile created/updated', updatedUser.email)
-        }
-    }, [session, status])
-
-    // Function to sync profile data to database
-    const syncProfileToDatabase = async (email, image, name) => {
+// Function to sync profile data to database
+const syncProfileToDatabase = async (email, image, name) => {
         try {
             console.log('Starting profile sync for:', email)
             
@@ -90,6 +45,112 @@ export default function AuthSync() {
             })
         }
     }
+
+export default function AuthSync() {
+    const { data: session, status } = useSession()
+
+    useEffect(() => {
+        if (status === 'authenticated' && session?.user) {
+            const upsertUser = async () => {
+                // Get existing user data from localStorage
+                const existingUser = localStorage.getItem('user')
+                let userData = existingUser ? JSON.parse(existingUser) : {}
+
+                // Merge session data with existing data as a base
+                let mergedUser = {
+                    ...userData,
+                    id: session.user.id || session.user.email,
+                    name: session.user.name || userData.name || '',
+                    email: session.user.email || userData.email || '',
+                    image: session.user.image || userData.image || '',
+                    provider: session.user.provider || 'google',
+                    isProfileSetup: true
+                }
+
+                // Ensure we have the real DB user (and token) for Google logins
+                if (session.user.provider === 'google' || session.user.googleId) {
+                    const googleId = session.user.googleId || session.user.id
+                    try {
+                        const response = await fetch('/api/auth/google', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                googleId,
+                                email: session.user.email,
+                                name: session.user.name,
+                                image: session.user.image
+                            })
+                        })
+
+                        if (response.ok) {
+                            const data = await response.json()
+                            mergedUser = {
+                                ...mergedUser,
+                                ...data.user,
+                                provider: 'google',
+                                googleId
+                            }
+
+                            if (data.token) {
+                                localStorage.setItem('token', data.token)
+                            }
+                        } else {
+                            console.error('Failed to sync Google user to backend:', response.status)
+                        }
+                    } catch (error) {
+                        console.error('Error syncing Google user to backend:', error)
+                    }
+                }
+
+                // Save to localStorage
+                localStorage.setItem('user', JSON.stringify(mergedUser))
+
+                // ✅ Sync CrashCash balance from database to localStorage
+                if (mergedUser.id) {
+                    try {
+                        const balResp = await fetch(`/api/crashcash/balance?userId=${mergedUser.id}`)
+                        if (balResp.ok) {
+                            const balData = await balResp.json()
+                            const dbBalance = balData.balance || 0
+                            
+                            // Update localStorage with database balance
+                            localStorage.setItem('crashCashBalance', dbBalance.toString())
+                            console.log(`✅ CrashCash balance synced from database: ₹${dbBalance}`)
+                            
+                            // Trigger balance update event
+                            window.dispatchEvent(new Event('crashcash-update'))
+                        } else {
+                            console.warn('⚠️ Failed to fetch CrashCash balance from server')
+                        }
+                    } catch (balError) {
+                        console.error('❌ Error syncing CrashCash balance:', balError)
+                    }
+                }
+
+                // Initialize user profile data storage
+                if (mergedUser.email) {
+                    initializeUserProfile(mergedUser.email, mergedUser)
+                }
+
+                // Sync profile with database (especially for Google OAuth images)
+                if (session.user.image || session.user.name) {
+                    syncProfileToDatabase(
+                        session.user.email,
+                        session.user.image,
+                        session.user.name
+                    )
+                }
+
+                // Dispatch events to notify other components
+                window.dispatchEvent(new Event('storage'))
+                window.dispatchEvent(new Event('profileUpdated'))
+
+                console.log('Auth synced: User profile created/updated', mergedUser.email)
+            }
+
+            upsertUser()
+        }
+    }, [session, status])
 
     return null // This component doesn't render anything
 }

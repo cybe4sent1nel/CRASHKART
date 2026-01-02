@@ -4,14 +4,18 @@
 
 import { PrismaClient } from '@prisma/client';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+;
 import { triggerOrderStatusEmail } from '@/lib/emailTriggerService';
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic';
 
 const prisma = new PrismaClient();
 
 export async function PATCH(req, { params }) {
     try {
-        const session = await getServerSession(authOptions);
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions);
         
         // Check admin authorization
         if (!session || !session.user?.email?.includes('@gmail.com')) {
@@ -67,7 +71,8 @@ export async function PATCH(req, { params }) {
 
         // Trigger automatic status email
         try {
-            const emailSent = await triggerOrderStatusEmail(
+                    const { authOptions } = await import('@/lib/auth')
+const emailSent = await triggerOrderStatusEmail(
                 updatedOrder,
                 previousStatus,
                 status,
@@ -104,7 +109,8 @@ export async function PATCH(req, { params }) {
 
 export async function GET(req, { params }) {
     try {
-        const { orderId } = params;
+                const { authOptions } = await import('@/lib/auth')
+const { orderId } = params;
 
         const order = await prisma.order.findUnique({
             where: { id: orderId },

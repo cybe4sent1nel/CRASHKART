@@ -2,6 +2,8 @@
 import React from 'react'
 
 export function AuroraBackground({ children, className = '' }) {
+    const stars = React.useMemo(() => Array.from({ length: 50 }), [])
+
     return (
         <div className={`relative min-h-screen bg-slate-950 overflow-hidden ${className}`}>
             {/* Aurora Lights */}
@@ -19,15 +21,15 @@ export function AuroraBackground({ children, className = '' }) {
 
             {/* Stars */}
             <div className='absolute inset-0'>
-                {[...Array(50)].map((_, i) => (
+                {stars.map((_, i) => (
                     <div
                         key={i}
                         className='absolute w-1 h-1 bg-white rounded-full opacity-60'
                         style={{
-                            top: `${Math.random() * 100}%`,
-                            left: `${Math.random() * 100}%`,
-                            animation: `twinkle ${2 + Math.random() * 3}s infinite`,
-                            animationDelay: `${Math.random() * 2}s`,
+                            top: `${(i * 37 % 100)}%`,
+                            left: `${(i * 53 % 100)}%`,
+                            animation: `twinkle ${2 + ((i * 17) % 3)}s infinite`,
+                            animationDelay: `${((i * 23) % 2000) / 1000}s`,
                         }}
                     />
                 ))}

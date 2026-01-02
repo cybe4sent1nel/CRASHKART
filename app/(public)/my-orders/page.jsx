@@ -74,27 +74,31 @@ export default function MyOrders() {
          // If order is marked as paid, show PAID regardless of method
          if (isPaid === true) return 'PAID'
          
+         // Normalize payment method to uppercase for comparison
+         const normalizedMethod = String(paymentMethod || '').toUpperCase()
+         
          // For COD orders that haven't been explicitly marked as paid
-         if ((paymentMethod === 'COD' || paymentMethod === 'cod') && isPaid !== true) {
+         if (normalizedMethod === 'COD' && isPaid !== true) {
              // COD is payment on delivery
              return 'PAYMENT ON DELIVERY'
          }
          
          // For online/cashfree/card payments
-         if (paymentMethod === 'CASHFREE' || paymentMethod === 'STRIPE' || paymentMethod === 'CARD') {
+         if (normalizedMethod === 'CASHFREE' || normalizedMethod === 'CARD') {
              // If not explicitly marked as paid, assume pending
              return isPaid === true ? 'PAID' : 'PAYMENT_PENDING'
          }
          
-         // Default
+         // Default - check status if payment method is unclear
          if (status === 'PAYMENT_PENDING') return 'PAYMENT_PENDING'
+         if (status === 'ORDER_PLACED' && !isPaid) return 'PAYMENT ON DELIVERY'
          return isPaid === true ? 'PAID' : 'PAYMENT_PENDING'
      }
 
     const handlePayNow = async (order) => {
+        const loadingToast = toast.loading('Redirecting to payment gateway...')
+        
         try {
-            toast.loading('Redirecting to payment gateway...')
-            
             // Recreate Cashfree order for payment
             const response = await fetch('/api/payments/cashfree-order', {
                 method: 'POST',
@@ -110,19 +114,36 @@ export default function MyOrders() {
 
             const data = await response.json()
             
+            toast.dismiss(loadingToast)
+            
             if (data.success) {
-                // Redirect to Cashfree payment page
-                // ALWAYS use sandbox for testing
+                toast.success('Redirecting to Cashfree...')
+                
+                // Load Cashfree SDK if not already loaded
+                if (!window.Cashfree) {
+                    const script = document.createElement('script')
+                    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js'
+                    script.async = true
+                    document.head.appendChild(script)
+                    
+                    await new Promise((resolve) => {
+                        script.onload = resolve
+                    })
+                }
+                
+                // Redirect to Cashfree payment page (SANDBOX mode for testing)
                 const cashfree = window.Cashfree({ mode: 'sandbox' })
                 cashfree.checkout({
                     paymentSessionId: data.paymentSessionId,
-                    returnUrl: `${window.location.origin}/order-success/${order.id}`
+                    // Redirect to the dedicated payment received page after successful payment
+                    returnUrl: `${window.location.origin}/payment-received/${order.id}`
                 })
             } else {
                 toast.error(data.message || 'Failed to initiate payment')
             }
         } catch (error) {
             console.error('Pay Now Error:', error)
+            toast.dismiss(loadingToast)
             
             // Show user-friendly error message
             if (error.message.includes('authentication') || error.message.includes('credentials')) {
@@ -696,7 +717,7 @@ export default function MyOrders() {
                                         }`}>
                                             {order.paymentStatus}
                                         </span>
-                                        {order.paymentStatus === 'PAYMENT_PENDING' && (order.paymentMethod === 'CASHFREE' || order.paymentMethod === 'CARD' || order.paymentMethod === 'STRIPE') && (
+                                        {(order.paymentStatus === 'PAYMENT_PENDING' || order.paymentStatus === 'PAYMENT ON DELIVERY') && !order.isPaid && (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
@@ -752,7 +773,7 @@ export default function MyOrders() {
                                         </div>
                                     )}
                                     {/* Order Confirmed - Order Placed Status */}
-                                    {order.status === 'Order Placed' && order.paymentStatus === 'PAID' && (
+                                    {(order.status === 'Order Placed' || order.status?.toUpperCase() === 'PAYMENT_RECEIVED') && order.paymentStatus === 'PAID' && (
                                         <div className="mb-6 flex flex-col items-center">
                                             {orderConfirmedAnimation ? (
                                                 <Lottie
@@ -1076,23 +1097,11 @@ export default function MyOrders() {
                                             {/* Pay Now Online Button for Pending Payments - Prominent */}
                                             {order.paymentStatus === 'PAYMENT_PENDING' && !order.isPaid && (
                                                 <button
-                                                    onClick={() => {
-                                                        const orderItems = order.items || order.orderItems || []
-                                                        if (orderItems.length === 0) {
-                                                            toast.error('No items in order')
-                                                            return
-                                                        }
-                                                        sessionStorage.setItem('codPaymentOrder', JSON.stringify({
-                                                            orderId: order.id,
-                                                            total: order.total,
-                                                            items: orderItems
-                                                        }))
-                                                        router.push(`/cod-payment/${order.id}`)
-                                                    }}
+                                                    onClick={() => handlePayNow(order)}
                                                     className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white rounded-lg transition font-bold text-sm shadow-lg shadow-red-500/50"
                                                 >
                                                     <RefreshCw size={18} />
-                                                    Pay Now Online & Enjoy Hassle-Free Delivery
+                                                    Pay Now & Enjoy Hassle-Free Delivery
                                                 </button>
                                             )}
                                             

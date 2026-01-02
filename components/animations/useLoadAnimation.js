@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 export function useLoadAnimation(animationPath) {
   const [animationData, setAnimationData] = useState(null);
   const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => Boolean(animationPath));
 
   useEffect(() => {
     if (!animationPath) {

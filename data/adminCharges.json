@@ -1,0 +1,18 @@
+{
+  "global": {
+    "shippingFee": 40,
+    "freeAbove": 999,
+    "convenienceFee": 0,
+    "platformFee": 0
+  },
+  "rules": [
+    {
+      "id": "rule_all",
+      "scopeType": "all",
+      "scope": "*",
+      "shippingFee": 40,
+      "convenienceFee": 0,
+      "platformFee": 0
+    }
+  ]
+}

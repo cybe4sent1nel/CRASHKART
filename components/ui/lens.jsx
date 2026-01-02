@@ -7,6 +7,22 @@ export const Lens = ({ children, zoomLevel = 1.5, lensSize = 150 }) => {
   const containerRef = useRef(null);
   const [isHovering, setIsHovering] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateSize = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        setContainerSize({ width: rect.width || 1, height: rect.height || 1 });
+      }
+    };
+
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
 
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
@@ -40,7 +56,7 @@ export const Lens = ({ children, zoomLevel = 1.5, lensSize = 150 }) => {
             className="w-full h-full"
             style={{
               transform: `scale(${zoomLevel})`,
-              transformOrigin: `${(position.x / containerRef.current.offsetWidth) * 100}% ${(position.y / containerRef.current.offsetHeight) * 100}%`,
+              transformOrigin: `${(position.x / containerSize.width) * 100}% ${(position.y / containerSize.height) * 100}%`,
             }}
           >
             {children}

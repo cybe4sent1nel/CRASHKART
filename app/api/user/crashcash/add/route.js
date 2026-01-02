@@ -1,51 +1,42 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { requireUser } from '@/lib/authTokens';
+import { createCrashCashReward } from '@/lib/rewards';
 
 export async function POST(request) {
     try {
-        // Get token from header
-        const token = request.headers.get('authorization')?.replace('Bearer ', '');
-        
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Verify token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        const userId = decoded.userId;
+        // Verify token and user session
+        const { user } = await requireUser(request);
+        const userId = user.id;
 
         // Get amount and source from body
-        const { amount, source = 'scratch-card' } = await request.json();
+        const { amount, source = 'scratch_card' } = await request.json();
+
+        const normalizedSource = String(source || 'scratch_card').replace('-', '_');
 
         if (!amount || amount <= 0) {
             return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
         }
 
-        // Update user's CrashCash balance
-        const user = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                crashCashBalance: {
-                    increment: amount
-                }
-            },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                crashCashBalance: true
-            }
+        // Create reward record and update user balance atomically
+        const { reward, user: updatedUser } = await createCrashCashReward({
+            userId,
+            amount: Number(amount),
+            source: normalizedSource,
         });
 
         return NextResponse.json({
             success: true,
             message: `₹${amount} CrashCash added successfully`,
-            newBalance: user.crashCashBalance,
-            source
+            newBalance: updatedUser.crashCashBalance,
+            reward,
+            source: normalizedSource,
         });
 
     } catch (error) {
+        if (error.name === 'AuthError') {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         console.error('Error adding CrashCash:', error);
         return NextResponse.json(
             { error: 'Internal server error' },

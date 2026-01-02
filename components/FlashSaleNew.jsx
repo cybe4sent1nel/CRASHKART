@@ -7,6 +7,7 @@ import { ShoppingCart, Flame, Heart, Bell, Star } from 'lucide-react'
 import Image from 'next/image'
 import { addToWishlist, removeFromWishlist } from '@/lib/features/wishlist/wishlistSlice'
 import { addToCart } from '@/lib/features/cart/cartSlice'
+import { CartOverrides } from '@/lib/cartOverrides'
 import OutOfStockDisplay from './OutOfStockDisplay'
 import LottieAnimation from './LottieAnimation'
 import wishlistAnimData from '@/public/animations/Wishlist Animation.json'
@@ -136,9 +137,13 @@ const FlashSaleNew = () => {
     const handleAddToCart = (product, e) => {
         e.preventDefault()
         e.stopPropagation()
-        dispatch(addToCart({
-            productId: product.id
-        }))
+        const effectivePrice = product.salePrice || product.price || product.originalPrice
+        try {
+            CartOverrides.set(product.id, { salePrice: effectivePrice, flashSaleId: product.flashSaleId || null, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+        } catch (err) {
+            console.warn('Unable to persist cart override', err)
+        }
+        dispatch(addToCart({ productId: product.id }))
         toast.success(`${product.name} added to cart!`)
     }
 
@@ -169,6 +174,12 @@ const FlashSaleNew = () => {
                 description: product.description,
                 discount: flashSaleDiscount
             }
+        }
+        // persist override so checkout picks up sale price even if product list lacks salePrice
+        try {
+            CartOverrides.set(product.id, { salePrice: discountedPrice, flashSaleId: product.flashSaleId || null, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+        } catch (err) {
+            console.warn('Unable to persist buy-now cart override', err)
         }
         sessionStorage.setItem('buyNowData', JSON.stringify(buyNowData))
         router.push('/buy-now-checkout')

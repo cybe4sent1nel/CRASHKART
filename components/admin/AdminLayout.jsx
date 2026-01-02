@@ -36,6 +36,68 @@ const AdminLayout = ({ children }) => {
              const admin2FAVerified = sessionStorage.getItem('admin2FAVerified') === 'true' || localStorage.getItem('admin2FAVerified') === 'true'
              const isAdmin = localStorage.getItem('isAdmin') === 'true'
              
+             // Keep a short-lived cookie so server middleware can recognize demo sessions
+             if (isDemoMode) {
+                 document.cookie = 'admin_demo=1; path=/; max-age=86400'
+             } else {
+                 document.cookie = 'admin_demo=; path=/; max-age=0'
+                 if (typeof window !== 'undefined' && window.__adminFetchPatched && window.__adminOriginalFetch) {
+                     window.fetch = window.__adminOriginalFetch
+                     delete window.__adminFetchPatched
+                 }
+             }
+
+             // In demo mode, patch fetch to simulate write operations and avoid DB mutations
+             if (isDemoMode && typeof window !== 'undefined' && !window.__adminFetchPatched) {
+                 const originalFetch = window.fetch
+                 window.__adminOriginalFetch = originalFetch
+                 window.__adminFetchPatched = true
+
+                 window.fetch = async (input, init = {}) => {
+                     try {
+                         const method = (init.method || (input?.method ?? 'GET')).toUpperCase()
+                         const url = typeof input === 'string' ? input : input?.url || ''
+                         const isAdminApi = url.startsWith('/api/admin') || url.includes('/api/admin')
+
+                         if (!isAdminApi) {
+                             return originalFetch(input, init)
+                         }
+
+                         // Always mark admin calls as demo for observability
+                         const headers = new Headers(init.headers || {})
+                         headers.set('X-Admin-Demo', 'true')
+
+                         if (method === 'GET') {
+                             const nextInit = { ...init, headers }
+                             return originalFetch(input, nextInit)
+                         }
+
+                         // For non-GET (write) calls, short-circuit with a simulated success response
+                         let parsedBody = null
+                         try {
+                             parsedBody = init?.body ? JSON.parse(init.body) : null
+                         } catch (err) {
+                             parsedBody = null
+                         }
+
+                         const mockPayload = {
+                             success: true,
+                             demo: true,
+                             message: 'Demo mode: operation simulated, no data changed.',
+                             echo: parsedBody,
+                         }
+
+                         return new Response(JSON.stringify(mockPayload), {
+                             status: 200,
+                             headers: { 'Content-Type': 'application/json' },
+                         })
+                     } catch (err) {
+                         // If anything goes wrong, fall back to the real fetch
+                         return originalFetch(input, init)
+                     }
+                 }
+             }
+
              console.log('AdminLayout - checking auth: demo=', isDemoMode, 'verified=', admin2FAVerified, 'isAdmin=', isAdmin, 'pathname:', pathname)
              
              // Allow access if demo mode OR (verified AND is admin)

@@ -8,6 +8,8 @@ const Counter = ({ productId }) => {
 
     const dispatch = useDispatch();
 
+    const quantity = cartItems?.[productId] || 0
+
     const addToCartHandler = () => {
         dispatch(addToCart({ productId }))
     }
@@ -19,7 +21,7 @@ const Counter = ({ productId }) => {
     return (
         <div className="inline-flex items-center gap-1 sm:gap-3 px-3 py-1 rounded border border-slate-200 dark:border-slate-600 max-sm:text-sm text-slate-600 dark:text-slate-300">
             <button onClick={removeFromCartHandler} className="p-1 select-none">-</button>
-            <p className="p-1">{cartItems[productId]}</p>
+            <p className="p-1">{quantity}</p>
             <button onClick={addToCartHandler} className="p-1 select-none">+</button>
         </div>
     )

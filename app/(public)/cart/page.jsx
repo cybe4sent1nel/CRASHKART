@@ -34,7 +34,7 @@ export default function Cart() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [selectAll, setSelectAll] = useState(false);
 
-    const createCartArray = () => {
+    const createCartArray = async () => {
         let totalPrice = 0;
         const cartArray = [];
         
@@ -53,11 +53,27 @@ export default function Cart() {
             let product = productList?.find(p => p.id === key || p._id === key);
             
             if (product) {
-                const price = product.price || product.originalPrice || 0;
+                let price = product.price || product.originalPrice || 0;
+                try {
+                    const { CartOverrides } = await import('@/lib/cartOverrides')
+                    const override = CartOverrides.get(product.id)
+                    if (override && override.salePrice) {
+                        // if expiry present and passed, ignore
+                        if (!override.expiresAt || Number(override.expiresAt) > Date.now()) {
+                            price = override.salePrice
+                        } else {
+                            // expired -> remove override
+                            CartOverrides.remove(product.id)
+                        }
+                    }
+                } catch (e) {
+                    // ignore dynamic import failure
+                }
                 cartArray.push({
                     ...product,
                     id: product.id || product._id,
                     quantity: value,
+                    price: price // use override price when present
                 });
                 totalPrice += price * value;
             }
@@ -128,7 +144,8 @@ export default function Cart() {
 
     useEffect(() => {
         if (products.length > 0) {
-            createCartArray();
+            createCartArray()
+            .catch(e => console.error('createCartArray error', e))
         }
     }, [cartItems, products]);
 

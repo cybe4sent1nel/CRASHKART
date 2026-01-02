@@ -5,13 +5,13 @@ import Link from 'next/link'
 import { Wallet } from 'lucide-react'
 
 export default function CrashCashCounter() {
-    const [balance, setBalance] = useState(0)
+    const [balance, setBalance] = useState(() => {
+        if (typeof window === 'undefined') return 0
+        return JSON.parse(localStorage.getItem('crashcashBalance') || '0')
+    })
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
-        // Get balance on mount
-        const savedBalance = JSON.parse(localStorage.getItem('crashcashBalance') || '0')
-        setBalance(savedBalance)
         setMounted(true)
 
         // Listen for storage changes (when balance updates from other component)

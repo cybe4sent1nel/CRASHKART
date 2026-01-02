@@ -4,6 +4,29 @@ import { sendOrderStatusEmail } from '@/lib/email';
 
 const prisma = new PrismaClient();
 
+async function revokeOrderRewards(orderId, userId) {
+    try {
+        const rewards = await prisma.crashCashReward.findMany({
+            where: { orderId, status: 'active' }
+        })
+        if (!rewards || rewards.length === 0) return
+
+        const total = rewards.reduce((s, r) => s + Number(r.amount || 0), 0)
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { crashCashBalance: true } })
+        const current = Number(user?.crashCashBalance || 0)
+        const newBalance = Math.max(0, current - total)
+
+        await prisma.$transaction([
+            prisma.crashCashReward.updateMany({ where: { orderId, status: 'active' }, data: { status: 'revoked', usedAt: new Date() } }),
+            prisma.user.update({ where: { id: userId }, data: { crashCashBalance: newBalance } })
+        ])
+
+        console.log(`Revoked ₹${total} rewards for order ${orderId} on status change`)
+    } catch (err) {
+        console.error('Failed to revoke rewards for order', orderId, err)
+    }
+}
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -70,6 +93,7 @@ export async function POST(request) {
         }
 
         let updatedItems = [];
+        const prevStatus = order.status
 
         if (shipmentId) {
             // UPDATE SINGLE SHIPMENT/PRODUCT (multi-product order scenario)
@@ -134,6 +158,8 @@ export async function POST(request) {
                 }
             });
 
+            const prevStatus = order.status
+
             // Update all OrderItems to the same status
             const updatedOrderItems = await prisma.orderItem.updateMany({
                 where: { orderId: orderId },
@@ -176,6 +202,43 @@ export async function POST(request) {
             } catch (emailError) {
                 console.warn('Failed to send order status email:', emailError.message);
             }
+        }
+
+        // If status transitioned into a terminal/return/cancel state, restore stock for the order
+        try {
+            const restoreStatuses = ['CANCELLED', 'RETURN_ACCEPTED', 'RETURN_PICKED_UP', 'REFUND_COMPLETED'];
+            if (!restoreStatuses.includes(String(prevStatus)) && restoreStatuses.includes(String(status))) {
+                // Fetch latest order items with products
+                const itemsToRestore = await prisma.orderItem.findMany({ where: { orderId }, include: { product: true } });
+                for (const it of itemsToRestore || []) {
+                    const pid = it.productId
+                    const qty = Number(it.quantity || 0)
+                    try {
+                        await prisma.product.update({ where: { id: pid }, data: { quantity: { increment: qty }, inStock: true } })
+                    } catch (pErr) {
+                        console.error(`Failed to restore product ${pid} on status ${status}:`, pErr.message)
+                    }
+
+                    try {
+                        const sales = await prisma.flashSale.findMany({ where: { products: { has: pid } } })
+                        for (const sale of sales || []) {
+                            const pq = sale.productQuantities || {}
+                            const current = (pq && pq[pid]) ? Number(pq[pid]) : Number(sale.maxQuantity || 0)
+                            const newPQ = Number(current) + qty
+                            const newPQObj = { ...(pq || {}), [pid]: newPQ }
+                            const soldAfter = Math.max(0, Number(sale.sold || 0) - qty)
+                            await prisma.flashSale.update({ where: { id: sale.id }, data: { productQuantities: newPQObj, sold: soldAfter } })
+                        }
+                    } catch (fsErr) {
+                        console.error(`Failed to restore flash sale stock for ${pid}:`, fsErr.message)
+                    }
+                }
+
+                // Revoke any rewards tied to this order and adjust balance
+                await revokeOrderRewards(orderId, order.userId)
+            }
+        } catch (restoreErr) {
+            console.error('Error restoring stock after status update:', restoreErr.message);
         }
 
         return NextResponse.json({

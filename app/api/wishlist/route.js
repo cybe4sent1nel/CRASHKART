@@ -1,12 +1,15 @@
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 const prisma = new PrismaClient()
 
 // GET - Fetch user's wishlist items
 export async function GET(req) {
     try {
+        const { authOptions } = await import('@/lib/auth')
         const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
@@ -48,6 +51,7 @@ export async function GET(req) {
 // POST - Add item to wishlist
 export async function POST(req) {
     try {
+        const { authOptions } = await import('@/lib/auth')
         const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
@@ -115,6 +119,7 @@ export async function POST(req) {
 // DELETE - Remove item from wishlist
 export async function DELETE(req) {
     try {
+        const { authOptions } = await import('@/lib/auth')
         const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {

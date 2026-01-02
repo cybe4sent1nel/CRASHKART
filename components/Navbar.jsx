@@ -16,6 +16,8 @@ import { PlaceholdersAndVanishInput } from "./ui/placeholders-and-vanish-input";
 import ProfileImage from "./ProfileImage";
 import { updateCrashCashBalance } from "@/lib/crashcashStorage";
 import { initializeUserProfile, migrateUserData } from "@/lib/userDataStorage";
+import LogoutConfirmModal from "./LogoutConfirmModal";
+import { performLogout } from "@/lib/logout";
 
 const navItems = [
   { name: "Home", link: "/" },
@@ -40,6 +42,8 @@ export default function Navbar() {
   const [crashCash, setCrashCash] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
   // Check for unread notifications from API
@@ -74,35 +78,53 @@ export default function Navbar() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false;
+
     // Load user data from localStorage
     const loadUser = () => {
       const userData = localStorage.getItem('user');
       if (userData) {
         try {
           const parsed = JSON.parse(userData);
-          setUser(parsed);
+          if (!cancelled) setUser(parsed);
           return parsed;
         } catch (e) {
           localStorage.removeItem('user');
-          setUser(null);
+          if (!cancelled) setUser(null);
           return null;
         }
       } else {
-        setUser(null);
+        if (!cancelled) setUser(null);
         return null;
       }
     };
 
-    // Load crash cash for the logged-in user from localStorage
-    const loadCrashCash = () => {
+    // Load crash cash for the logged-in user from backend; fallback to local
+    const loadCrashCash = async () => {
       try {
-        // Use the same function as checkout pages
-        const balance = updateCrashCashBalance();
-        setCrashCash(balance);
-        console.log('💰 Navbar loaded CrashCash balance:', balance);
+        const userData = localStorage.getItem('user');
+        const parsed = userData ? JSON.parse(userData) : null;
+
+        // Always compute local merged balance (includes scratch/discountRewards) as a fallback
+        const localMergedBalance = updateCrashCashBalance();
+
+        if (parsed?.id) {
+          const resp = await fetch(`/api/crashcash/rewards?userId=${parsed.id}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const active = data.activeRewards || [];
+            const serverBalance = active.reduce((sum, r) => sum + Number(r.amount || r.crashcash || 0), 0);
+            if (!cancelled) setCrashCash(serverBalance);
+            console.log('💰 Navbar loaded CrashCash balance (server only):', { serverBalance });
+            return;
+          }
+        }
+
+        if (!cancelled) setCrashCash(localMergedBalance);
+        console.log('💰 Navbar loaded CrashCash balance (local fallback):', localMergedBalance);
       } catch (e) {
         console.error('Error loading crash cash:', e);
-        setCrashCash(0);
+        if (!cancelled) setCrashCash(0);
       }
     };
 
@@ -149,6 +171,7 @@ export default function Navbar() {
       window.removeEventListener('crashcash-update', handleCrashcashUpdate);
       window.removeEventListener('profileUpdated', handleProfileUpdate);
       clearTimeout(storageTimeout);
+      cancelled = true;
     };
   }, []);
 
@@ -171,10 +194,20 @@ export default function Navbar() {
   }, [userMenuOpen]);
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-    setUserMenuOpen(false);
-    router.push('/');
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async (allDevices = false) => {
+    setLoggingOut(true);
+    try {
+      await performLogout({ allDevices });
+      setUser(null);
+      setUserMenuOpen(false);
+      router.push('/');
+    } finally {
+      setLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   const cartCount = useSelector((state) => state.cart.total);
@@ -269,7 +302,7 @@ export default function Navbar() {
             <Link href="/wishlist" className="relative flex items-center gap-2 text-slate-600 dark:text-white hover:text-red-600 transition">
               <Heart size={18} />
               <span className="absolute -top-2 -right-2 text-[10px] text-white bg-red-500 size-4 rounded-full flex items-center justify-center">
-                {wishlistCount}
+                {hydrated ? wishlistCount : 0}
               </span>
             </Link>
 
@@ -281,7 +314,7 @@ export default function Navbar() {
             <Link href="/cart" className="relative flex items-center gap-2 text-slate-600 dark:text-white hover:text-slate-800 dark:hover:text-gray-300 transition">
               <ShoppingCart size={18} />
               <span className="absolute -top-2 -right-2 text-[10px] text-white bg-slate-600 size-4 rounded-full flex items-center justify-center">
-                {cartCount}
+                {hydrated ? cartCount : 0}
               </span>
             </Link>
 
@@ -358,13 +391,13 @@ export default function Navbar() {
             <Link href="/wishlist" className="relative">
               <Heart size={20} className="text-slate-600 dark:text-white hover:text-red-600 transition" />
               <span className="absolute -top-2 -right-2 text-[8px] text-white bg-red-500 size-3 rounded-full flex items-center justify-center">
-                {wishlistCount}
+                {hydrated ? wishlistCount : 0}
               </span>
             </Link>
 
             <Link href="/crash-cash" className="flex items-center gap-1">
               <img src="/crashcash.ico" alt="CrashCash" className="w-5 h-5" />
-              <span className="text-xs font-semibold text-slate-700 dark:text-white">{crashCash}</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-white">{hydrated ? crashCash : 0}</span>
             </Link>
 
             {user ? (
@@ -454,6 +487,13 @@ export default function Navbar() {
           />
         </div>
       </div>
+
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+        loading={loggingOut}
+      />
     </motion.div>
   );
 }

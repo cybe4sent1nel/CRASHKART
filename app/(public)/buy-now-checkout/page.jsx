@@ -10,6 +10,7 @@ import PageTitle from '@/components/PageTitle'
 import toast from 'react-hot-toast'
 import { updateCrashCashBalance } from '@/lib/crashcashStorage'
 import dynamic from 'next/dynamic'
+import AnimationBackground from '@/components/AnimationBackground'
 
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false })
 
@@ -41,6 +42,7 @@ export default function BuyNowCheckout() {
     const [crashCashAnimationData, setCrashCashAnimationData] = useState(null)
     const [allowCoupons, setAllowCoupons] = useState(true) // Default true for non-flash-sale items
     const [allowCrashCash, setAllowCrashCash] = useState(true) // Default true for non-flash-sale items
+    const [charges, setCharges] = useState({ shippingFee: 40, freeAbove: 999, convenienceFee: 0, platformFee: 0 })
 
     // Load Lottie animations
     useEffect(() => {
@@ -49,10 +51,11 @@ export default function BuyNowCheckout() {
             .then(data => setCouponAnimationData(data))
             .catch(err => console.error('Error loading coupon animation:', err))
 
+        // Use cash jump animation for CrashCash popups on Buy Now checkout
         fetch('/animations/cash jump.json')
             .then(res => res.json())
             .then(data => setCrashCashAnimationData(data))
-            .catch(err => console.error('Error loading crash cash animation:', err))
+            .catch(err => console.error('Error loading crash cash animation (cash jump):', err))
     }, [])
 
     // Load Buy Now product data
@@ -140,6 +143,21 @@ export default function BuyNowCheckout() {
             setAllowCrashCash(true)
         }
     }
+    // Fetch admin charges
+    useEffect(() => {
+        const fetchCharges = async () => {
+            try {
+                const res = await fetch('/api/admin/charges')
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.success) setCharges(data.charges)
+                }
+            } catch (e) {
+                console.error('Failed to load admin charges', e)
+            }
+        }
+        fetchCharges()
+    }, [])
     
     // Fetch addresses from API
     useEffect(() => {
@@ -197,7 +215,7 @@ export default function BuyNowCheckout() {
        }
     }, [addresses, selectedAddressId])
 
-    // Load phone number from user profile and CrashCash balance from localStorage
+    // Load phone number from user profile and CrashCash balance from server (fallback to local)
     useEffect(() => {
        const userData = localStorage.getItem('user')
        if (userData) {
@@ -215,13 +233,34 @@ export default function BuyNowCheckout() {
            }
        }
 
-       // Load CrashCash balance from localStorage
-       const loadCrashCashBalance = () => {
+       const loadServerCrashCash = async (user) => {
+           if (!user?.id) return false
            try {
-               // Update balance from localStorage (removes expired rewards)
+               const resp = await fetch(`/api/crashcash/rewards?userId=${user.id}`)
+               if (resp.ok) {
+                   const data = await resp.json()
+                   const active = data.activeRewards || []
+                   const total = active.reduce((sum, r) => sum + Number(r.amount || r.crashcash || 0), 0)
+                   setCrashCashBalance(total)
+                   console.log('💰 Loaded CrashCash balance from server:', total)
+                   return true
+               }
+           } catch (err) {
+               console.warn('Buy-now checkout: server crashcash fetch failed, using local fallback', err)
+           }
+           return false
+       }
+
+       // Load CrashCash balance; prefer server, fallback to local merged storage
+       const loadCrashCashBalance = async () => {
+           try {
+               const user = userData ? JSON.parse(userData) : null
+               const ok = await loadServerCrashCash(user)
+               if (ok) return
+
                const balance = updateCrashCashBalance()
                setCrashCashBalance(balance)
-               console.log('💰 Loaded CrashCash balance:', balance)
+               console.log('💰 Loaded CrashCash balance from local fallback:', balance)
            } catch (error) {
                console.error('Error loading CrashCash balance:', error)
                setCrashCashBalance(0)
@@ -249,22 +288,28 @@ export default function BuyNowCheckout() {
 
     const selectedAddress = addresses?.find(a => a.id === selectedAddressId)
 
-    const handleApplyCoupon = () => {
+    const handleApplyCoupon = async () => {
         setCouponError('')
-        const result = validateCoupon(couponCode, totalPrice)
+        try {
+            const productIds = cartArray.map(p => p.id || p._id)
+            const result = await validateCoupon(couponCode, totalPrice, productIds)
 
-        if (result.valid) {
-            setAppliedCoupon({
-                code: result.coupon.code,
-                discount: result.discount,
-                type: result.coupon.type
-            })
-            // Show animation popup
-            setAnimationMessage('Coupon has been applied successfully!')
-            setShowCouponAnimation(true)
-            setTimeout(() => setShowCouponAnimation(false), 3000)
-        } else {
-            setCouponError(result.message)
+            if (result && result.valid) {
+                setAppliedCoupon({
+                    ...result.coupon,
+                    code: result.coupon?.code || couponCode.toUpperCase(),
+                    discount: result.discount || 0
+                })
+                // Show animation popup
+                setAnimationMessage('Coupon has been applied successfully!')
+                setShowCouponAnimation(true)
+                setTimeout(() => setShowCouponAnimation(false), 3000)
+            } else {
+                setCouponError(result?.message || 'Invalid coupon')
+            }
+        } catch (err) {
+            console.error('Error applying coupon:', err)
+            setCouponError('Failed to apply coupon. Please try again.')
         }
     }
 
@@ -292,6 +337,55 @@ export default function BuyNowCheckout() {
             total -= appliedCrashCash
         }
         return Math.max(0, total)
+    }
+
+    // Compute delivery/convenience/platform fees based on admin charges and applied coupon
+    const computeDeliveryFees = () => {
+        const items = cartArray || []
+        const admin = charges || { global: { shippingFee: 40, freeAbove: 999, convenienceFee: 0, platformFee: 0 }, rules: [] }
+        const global = admin.global || {}
+
+        const matched = items.map(item => {
+            const pid = item.id || item._id
+            const category = item.category || ''
+            let rule = (admin.rules || []).find(r => r.scopeType === 'product' && String(r.scope) === String(pid))
+            if (!rule && category) rule = (admin.rules || []).find(r => r.scopeType === 'category' && String(r.scope).toLowerCase() === String(category).toLowerCase())
+            if (!rule) rule = (admin.rules || []).find(r => r.scopeType === 'all' || r.scope === '*')
+            return {
+                shippingFee: Number(rule?.shippingFee ?? global.shippingFee ?? 0),
+                convenienceFee: Number(rule?.convenienceFee ?? global.convenienceFee ?? 0),
+                platformFee: Number(rule?.platformFee ?? global.platformFee ?? 0)
+            }
+        })
+
+        const baseShipping = matched.length ? Math.max(...matched.map(m => m.shippingFee)) : Number(global.shippingFee || 0)
+        const convenience = matched.length ? Math.max(...matched.map(m => m.convenienceFee)) : Number(global.convenienceFee || 0)
+        const platformFee = matched.length ? Math.max(...matched.map(m => m.platformFee)) : Number(global.platformFee || 0)
+
+        const waived = Array.isArray(appliedCoupon?.appliesToCharges) ? appliedCoupon.appliesToCharges.map(x => String(x).toLowerCase()) : []
+        const isFreeDeliveryCoupon = !!(
+            (appliedCoupon && ((appliedCoupon.couponType && String(appliedCoupon.couponType).toLowerCase().includes('free')) || (appliedCoupon.type && String(appliedCoupon.type).toLowerCase().includes('free'))))
+        )
+
+        let ship = baseShipping
+        let conv = convenience
+        let plat = platformFee
+
+        if (waived.includes('shipping') || isFreeDeliveryCoupon) ship = 0
+        if (waived.includes('convenience')) conv = 0
+        if (waived.includes('platform')) plat = 0
+
+        const subtotalAfterDiscount = getTotalAfterDiscount()
+        const freeAbove = Number(global.freeAbove || 999)
+        const feesAreFreeByThreshold = subtotalAfterDiscount >= freeAbove
+        if (feesAreFreeByThreshold) {
+            ship = 0
+            conv = 0
+            plat = 0
+        }
+
+        const deliveryCharge = Number(ship + conv + plat)
+        return { shipping: ship, convenience: conv, platform: plat, deliveryCharge, freeAbove }
     }
 
     const handleApplyCrashCash = () => {
@@ -341,7 +435,11 @@ export default function BuyNowCheckout() {
              return
          }
 
-         // Prepare checkout data
+         // Prepare checkout data (NO Cashfree order creation yet)
+          const subtotalAfterDiscount = getTotalAfterDiscount()
+          const fees = computeDeliveryFees()
+          const deliveryCharge = fees.deliveryCharge
+
           const checkoutData = {
               selectedAddressId,
               mobileNumber,
@@ -349,75 +447,28 @@ export default function BuyNowCheckout() {
               appliedCrashCash,
               items: cartArray.map(item => ({
                   ...item,
-                  // Ensure storeId is included (required for order creation)
                   storeId: item.storeId || item.store_id
               })),
               subtotal: totalPrice,
               discount: appliedCoupon?.discount || 0,
               crashCashDiscount: appliedCrashCash,
-              total: getTotalAfterDiscount(),
+              deliveryCharge: deliveryCharge,
+              total: subtotalAfterDiscount + deliveryCharge,
               isBuyNow: true
           }
 
          try {
-             // First, create the order on Cashfree to get the payment session
-             const token = localStorage.getItem('token')
-             const response = await fetch('/api/payments/cashfree-order', {
-                 method: 'POST',
-                 headers: {
-                     'Content-Type': 'application/json',
-                     'Authorization': `Bearer ${token}`
-                 },
-                 body: JSON.stringify(checkoutData)
-             })
-
-             const orderData = await response.json()
-
-             if (!response.ok) {
-                 throw new Error(orderData.message || 'Failed to create order')
-             }
-
-             console.log('✅ Cashfree Order Created:', {
-                 orderId: orderData.orderId,
-                 cashfreeOrderId: orderData.cashfreeOrderId,
-                 paymentSessionId: orderData.paymentSessionId?.substring(0, 30),
-                 total: orderData.total
-             })
-
-             // Store complete order data with session ID
-             // IMPORTANT: Only use the session ID from orderData, don't merge duplicates
-             const completeCheckoutData = {
-                 ...checkoutData,
-                 orderId: orderData.orderId,
-                 cashfreeOrderId: orderData.cashfreeOrderId,
-                 paymentSessionId: orderData.paymentSessionId,  // Use server's clean version
-                 paymentLink: orderData.paymentLink
-             }
-
-             console.log('💾 Storing in sessionStorage:', {
-                 hasPaymentSessionId: !!completeCheckoutData.paymentSessionId,
-                 sessionIdLength: completeCheckoutData.paymentSessionId?.length,
-                 sessionIdStart: completeCheckoutData.paymentSessionId?.substring(0, 50)
-             })
-          
-             sessionStorage.setItem('checkoutData', JSON.stringify(completeCheckoutData))
+             // ✅ Store checkout data and proceed to payment method selection
+             // Cashfree order will be created ONLY when user selects Card/UPI and clicks "Complete Payment"
+             console.log('💾 Storing checkout data (Cashfree order NOT created yet)')
+             sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData))
              router.push('/payment-method')
 
          } catch (error) {
-             console.error('Payment initialization error:', error)
-             
-             // Show user-friendly error message
-             if (error.message.includes('authentication') || error.message.includes('credentials')) {
-                 toast.error('Payment gateway configuration error. Please contact support.', {
-                     duration: 6000
-                 })
-             } else if (error.message.includes('timeout') || error.message.includes('connection')) {
-                 toast.error('Connection timeout. Please check your internet and try again.', {
-                     duration: 5000
-                 })
-             } else {
-                 toast.error(error.message || 'Failed to initialize payment. Please try again.')
-             }
+             console.error('Checkout error:', error)
+             toast.error(error.message || 'Failed to proceed to payment', {
+                 duration: 4000
+             })
          }
      }
 
@@ -437,6 +488,8 @@ export default function BuyNowCheckout() {
             </div>
         )
     }
+
+    const fees = computeDeliveryFees()
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-12">
@@ -786,10 +839,22 @@ export default function BuyNowCheckout() {
                                         <span className="font-semibold">-₹{appliedCrashCash.toLocaleString()}</span>
                                     </div>
                                 )}
+                                <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                                    <span className="flex items-center gap-2">
+                                        <Truck size={16} />
+                                        Delivery Charge
+                                        {getTotalAfterDiscount() >= (fees.freeAbove || 999) && (
+                                            <span className="text-xs text-green-600 dark:text-green-400 font-semibold">FREE</span>
+                                        )}
+                                    </span>
+                                    <span className={`font-semibold ${getTotalAfterDiscount() >= (fees.freeAbove || 999) ? 'line-through text-slate-400' : ''}`}>
+                                        ₹{(getTotalAfterDiscount() >= (fees.freeAbove || 999) ? 0 : fees.deliveryCharge).toLocaleString()}
+                                    </span>
+                                </div>
                                 <div className="border-t-2 border-slate-300 dark:border-slate-600 pt-3">
                                     <div className="flex justify-between text-slate-900 dark:text-white text-xl font-bold">
                                         <span>Total Amount</span>
-                                        <span className="text-red-600 dark:text-red-400">₹{getTotalAfterDiscount().toLocaleString()}</span>
+                                        <span className="text-red-600 dark:text-red-400">₹{(getTotalAfterDiscount() + fees.deliveryCharge).toLocaleString()}</span>
                                     </div>
                                 </div>
                                 {(appliedCoupon || appliedCrashCash > 0) && (
@@ -807,7 +872,7 @@ export default function BuyNowCheckout() {
                             onClick={handleProceedToPayment}
                             className="w-full px-6 py-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-lg transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2 active:scale-95"
                         >
-                            Proceed to Payment • ₹{getTotalAfterDiscount().toLocaleString()}
+                            Proceed to Payment • ₹{(getTotalAfterDiscount() + fees.deliveryCharge).toLocaleString()}
                             <ChevronRight size={20} />
                         </button>
                         </div>

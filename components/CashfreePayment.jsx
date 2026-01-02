@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react'
+import AnimationBackground from './AnimationBackground'
 import { useRouter } from 'next/navigation'
 import { Lock, AlertCircle, Loader } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -75,7 +76,9 @@ export function CashfreePaymentWrapper({ onSuccess, checkoutData, isLoading: ext
     }
 
     return (
-        <div className="space-y-6">
+        <div className="relative">
+            <AnimationBackground animationPath={'/Online Payments.json'} opacity={0.06} />
+            <div className="space-y-6 relative z-10">
             {/* Payment Info */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex gap-3">
                 <Lock className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -140,9 +143,10 @@ export function CashfreePaymentWrapper({ onSuccess, checkoutData, isLoading: ext
                 )}
             </button>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-                Powered by Cashfree | Secure & PCI Compliant
-            </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+                    Powered by Cashfree | Secure & PCI Compliant
+                </p>
+            </div>
         </div>
     )
 }

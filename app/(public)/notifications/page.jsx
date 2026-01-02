@@ -356,9 +356,11 @@ export default function Notifications() {
                             <motion.div 
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="text-center py-12"
+                                className="text-center py-12 flex flex-col items-center justify-center min-h-[60vh]"
                             >
-                                <EmptyGhostAnimation width="200px" height="200px" />
+                                <div className="w-full flex items-center justify-center">
+                                    <EmptyGhostAnimation width="260px" height="260px" animationPath="/animations/Empty Notifications.json" />
+                                </div>
                                 <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full mb-4 mt-4">
                                     <Bell className="w-8 h-8 text-slate-400" />
                                 </div>

@@ -89,15 +89,77 @@ function PlaceOrderContent() {
             
             fetchAddresses()
 
-            // Load user's crash cash (per-user)
-            // Migrate old crash cash on first load
-            migrateOldCrashCash(email)
-            
-            // Load user-specific crash cash
-            const userCashData = getUserCrashCash(email)
-            if (userCashData.items && userCashData.items.length > 0) {
-                setUserCrashCash(userCashData.items)
+            // Load user's CrashCash from server as single source; fallback to local if server fails
+            const loadServerCrashCash = async () => {
+                try {
+                    const resp = await fetch(`/api/crashcash/rewards?userId=${user.id}`)
+                    if (resp.ok) {
+                        const data = await resp.json()
+                        const active = data.activeRewards || []
+                        const mapped = active.map(r => ({
+                            id: r.id,
+                            amount: r.amount || r.crashcash || 0,
+                            expiryDate: r.expiresAt,
+                            source: r.source,
+                            earnedAt: r.earnedAt || r.awardedAt || r.scratchedAt || null
+                        }))
+                        setUserCrashCash(mapped)
+                        return true
+                    }
+                } catch (err) {
+                    console.warn('Checkout: server crashcash fetch failed, using local', err)
+                }
+                return false
             }
+
+            const fallbackLocalCrashCash = () => {
+                // Migrate old crash cash on first load
+                migrateOldCrashCash(email)
+                const userCashData = getUserCrashCash(email)
+
+                // Merge CrashCash from local rewards storage (scratch/discountRewards)
+                const extraCrashCash = []
+                try {
+                    const discountRewards = JSON.parse(localStorage.getItem('discountRewards') || '[]')
+                    discountRewards.forEach(r => {
+                        const isCash = r.rewardType === 'crashcash' || (!r.rewardType && !r.discount && (r.amount || r.bonusCrashcash || r.crashcash))
+                        if (isCash) {
+                            extraCrashCash.push({
+                                id: r.id || `cash_${Date.now()}`,
+                                amount: r.amount || r.bonusCrashcash || r.crashcash || 0,
+                                expiryDate: r.expiresAt || r.expiryDate,
+                                source: r.source || 'scratch_card',
+                                earnedAt: r.earnedAt || r.scratchedAt || r.wonDate || null
+                            })
+                        }
+                    })
+
+                    const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
+                    scratchRewards.forEach(r => {
+                        const isCash = r.rewardType === 'crashcash' || (!r.rewardType && r.crashcash)
+                        if (isCash) {
+                            extraCrashCash.push({
+                                id: r.id || r.code || `cash_${Date.now()}`,
+                                amount: r.crashcash || 0,
+                                expiryDate: r.expiresAt || r.expiryDate,
+                                source: 'scratch_card',
+                                earnedAt: r.scratchedAt || r.wonDate || r.earnedAt || null
+                            })
+                        }
+                    })
+                } catch (mergeErr) {
+                    console.warn('Checkout: failed to merge extra crashcash', mergeErr)
+                }
+
+                const mergedItems = [...(userCashData.items || []), ...extraCrashCash]
+                if (mergedItems.length > 0) {
+                    setUserCrashCash(mergedItems)
+                }
+            }
+
+            loadServerCrashCash().then(ok => {
+                if (!ok) fallbackLocalCrashCash()
+            })
         } catch (error) {
             console.error('Error loading user data:', error)
         }
@@ -131,6 +193,24 @@ function PlaceOrderContent() {
             return cartItems.reduce((total, item) => total + ((item.price || 0) * (item.quantity || 1)), 0)
         }
         return 0
+    }
+
+    // Calculate maximum CrashCash that can be redeemed based on product prices
+    const calculateMaxRedeemableCrashCash = () => {
+        let maxRedeemable = 0
+        
+        if (productData) {
+            // For single product, max redeemable is up to 5% of product price
+            maxRedeemable = Math.round((productData.price * 5) / 100) * productData.quantity
+        } else if (cartItems && cartItems.length > 0) {
+            // For cart items, sum up max redeemable for each
+            cartItems.forEach(item => {
+                const itemMaxRedeemable = Math.round((item.price * 5) / 100) * item.quantity
+                maxRedeemable += itemMaxRedeemable
+            })
+        }
+        
+        return maxRedeemable
     }
 
     const handleAddAddress = async (addressData) => {
@@ -168,19 +248,25 @@ function PlaceOrderContent() {
         }
     }
 
-    const handleApplyCoupon = () => {
+    const handleApplyCoupon = async () => {
         setCouponError('')
-        const totalAmount = calculateTotal()
-        const result = validateCoupon(couponCode, totalAmount)
+        try {
+            const totalAmount = calculateTotal()
+            const productIds = productData ? [productData.id] : (cartItems || []).map(i => i.id)
+            const result = await validateCoupon(couponCode, totalAmount, productIds)
 
-        if (result.valid) {
-            setAppliedCoupon({
-                code: result.coupon.code,
-                discount: result.discount,
-                type: result.coupon.type
-            })
-        } else {
-            setCouponError(result.message)
+            if (result && result.valid) {
+                setAppliedCoupon({
+                    ...result.coupon,
+                    code: result.coupon?.code || couponCode.toUpperCase(),
+                    discount: result.discount || 0
+                })
+            } else {
+                setCouponError(result?.message || 'Invalid coupon')
+            }
+        } catch (err) {
+            console.error('Error applying coupon:', err)
+            setCouponError('Failed to validate coupon. Please try again.')
         }
     }
 
@@ -190,7 +276,7 @@ function PlaceOrderContent() {
     }
 
     const getTotalCrashCashAvailable = () => {
-        return userCrashCash.reduce((sum, item) => sum + item.amount, 0)
+        return userCrashCash.reduce((sum, item) => sum + Number(item.amount || 0), 0)
     }
 
     const getTotalAfterDiscount = () => {
@@ -215,9 +301,13 @@ function PlaceOrderContent() {
         const totalCouponDiscount = appliedCoupon?.discount || 0
         const totalAfterCoupon = total - totalCouponDiscount
         const availableCash = getTotalCrashCashAvailable()
+        const maxRedeemable = calculateMaxRedeemableCrashCash()
         
-        // Apply only the amount available or the full amount needed, whichever is less
-        const cashToApply = Math.min(availableCash, totalAfterCoupon)
+        // Apply only the amount that meets all constraints:
+        // 1. Cannot exceed available balance
+        // 2. Cannot exceed max redeemable (5% of product prices)
+        // 3. Cannot exceed remaining total after coupon discount
+        const cashToApply = Math.min(availableCash, maxRedeemable, totalAfterCoupon)
         
         setAppliedCrashCash(cashToApply)
         setUseCrashCash(true)
@@ -950,10 +1040,6 @@ function PlaceOrderContent() {
                             <span className='font-semibold text-slate-800 dark:text-white'>Cash on Delivery (COD)</span>
                         </label>
                         <label className='flex items-center gap-3 p-4 border-2 border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-all dark:bg-slate-800'>
-                            <input type="radio" value="CARD" checked={paymentMethod === 'CARD'} onChange={(e) => setPaymentMethod(e.target.value)} className='w-4 h-4' />
-                            <span className='font-semibold text-slate-800 dark:text-white'>Credit/Debit Card</span>
-                        </label>
-                        <label className='flex items-center gap-3 p-4 border-2 border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-all dark:bg-slate-800'>
                             <input type="radio" value="UPI" checked={paymentMethod === 'UPI'} onChange={(e) => setPaymentMethod(e.target.value)} className='w-4 h-4' />
                             <span className='font-semibold text-slate-800 dark:text-white'>UPI Payment</span>
                         </label>
@@ -962,21 +1048,6 @@ function PlaceOrderContent() {
                             <span className='font-semibold text-slate-800 dark:text-white'>Digital Wallet</span>
                         </label>
                     </div>
-
-                    {paymentMethod === 'CARD' && stripePromise && (
-                        <Elements stripe={stripePromise}>
-                            <StripePaymentForm 
-                                amount={getTotalAfterDiscount() * 100}
-                                onSuccess={(paymentMethodId) => {
-                                    console.log('Stripe payment successful:', paymentMethodId)
-                                }}
-                                onError={(error) => {
-                                    console.error('Stripe error:', error)
-                                }}
-                                isProcessing={false}
-                            />
-                        </Elements>
-                    )}
 
                     {paymentMethod === 'UPI' && (
                         <div className='bg-slate-50 dark:bg-slate-700 rounded-lg p-6'>

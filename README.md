@@ -27,6 +27,8 @@ CrashKart isn't just another e-commerce platform—it's a complete shopping ecos
 
 What started as a vision to simplify tech shopping has evolved into a full-featured marketplace with everything from AI-powered support to real-time notifications, all wrapped in a beautiful, responsive interface that works seamlessly across devices.
 
+CrashKart ships with production-ready ops hooks (Vercel Cron), a read-only admin demo sandbox, hardened auth (NextAuth/JWT + admin 2FA), and multiple payment rails (Cashfree, Stripe, COD) to stay reliable in both demo and live environments.
+
 ### 🌟 Why CrashKart?
 
 - **Lightning Fast**: Built with Next.js 15 and Turbopack for instant page loads
@@ -93,7 +95,6 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **Stock Alerts** - Get notified when out-of-stock items return
 
 ### 🎨 **User Experience**
-- **Dark Mode** - System-aware theme switching with localStorage persistence
 - **Offline Support** - Graceful offline detection with retry mechanisms
 - **Loading States** - Skeleton loaders and progress indicators
 - **Toast Notifications** - Non-intrusive feedback for user actions
@@ -112,6 +113,7 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **Return & Refund Handling** - Process returns, pickups, and refunds seamlessly
 - **Store Settings** - Configure shipping, returns, and business details
 - **Admin Authentication** - Secure login at `/admin/login` (Production: https://crashkart.vercel.app/admin/login | Local: http://localhost:3000/admin/login)
+- **Demo Sandbox** - Full admin UI available in demo mode; write operations are simulated and do not touch production data
 
 ### 🎁 **Gamification & Rewards**
 - **CrashCash System** - Virtual currency earned on purchases
@@ -128,6 +130,37 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **Recently Viewed History** - Browse history tracking
 - **Cookie Consent** - GDPR-compliant cookie management
 - **Feedback System** - In-app feedback collection
+
+---
+
+## 🆕 Recent Updates (Dec 2025)
+
+- **Admin-configurable charges**: Admins can now configure delivery/shipping, convenience, and platform fees using per-product and per-category rules (stored in `data/adminCharges.json`). Checkout, Buy‑Now, and Product pages compute fees from these rules and display a full price breakdown.
+
+- **Coupon charge-waivers**: Coupons store which charge categories they affect in `appliesToCharges` (String[]). The admin UI exposes a convenience toggle `waiveAllCharges` that the server maps to `appliesToCharges = ["shipping","convenience","platform"]` on create/update so waivers are persisted and respected at order time.
+
+- **Server-side authoritative pricing**: Order creation (`app/api/orders/create/route.js`) validates canonical product prices and active flash-sales, recomputes subtotal, applies canonical coupon logic (including charge waivers), and persists the final delivery/convenience/platform breakdown to the order to prevent client-side tampering.
+
+- **Invoice & PDF fixes**: Invoice generation was hardened for production: invoice HTML/static imports were fixed and the invoice API now correctly awaits dynamic params so PDF generation works reliably in server builds.
+
+- **Backfill & migration helper**: A backfill script is included at `prisma/scripts/apply_appliesToCharges_mongo.js` to populate `appliesToCharges` for existing coupons. Run after syncing schema:
+
+```bash
+npx prisma db push
+node prisma/scripts/apply_appliesToCharges_mongo.js
+```
+
+- **Notifications: Clear All fix**: The notifications DELETE route was updated so the "Clear all" action correctly resolves different user identifier formats (Mongo id, Google id, email) before deleting.
+
+- **Admin UI improvements**: Coupons admin now supports per-product selection and "Select All"; the Edit button and icons were fixed. Checkout and Product Details UI now show per-product delivery/free‑above thresholds and the full fee breakdown to match server calculations.
+
+- **Admin demo sandbox**: Admin demo mode now mirrors full admin UX while blocking real writes. A client-side fetch patch and middleware enforce read-only behavior, and demo sessions are marked via cookie for server awareness.
+
+- **Cron hardening & schedules**: Added `CRON_SECRET` + `CRASHCASH_CRON_SECRET` enforcement and Vercel cron entries for CrashCash expiry (daily 02:00), email triggers (hourly), inactive-user winback (daily 03:30), and a daily all-tasks sweep (04:00). GitHub workflow cron was removed in favor of Vercel cron.
+
+- **Authentication tightening**: NextAuth/JWT secrets refreshed; admin login flow enforces 2FA + security code for main admin, while demo mode remains isolated/read-only. User auth continues to support email OTP, Google OAuth, and JWT-backed sessions with session persistence.
+
+- **Admin demo sandbox**: Demo admin sessions are now tagged via cookie, routed through middleware, and short-circuit write calls client-side to prevent any production data changes while keeping the full admin UI/flows available for demos.
 
 ---
 
@@ -148,7 +181,7 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **API**: Next.js API Routes (REST)
 - **Database**: MongoDB (Atlas)
 - **ORM**: Prisma 6.19.1
-- **Authentication**: NextAuth.js + JWT
+- **Authentication**: NextAuth.js + JWT (email OTP, Google OAuth); admin 2FA + security code; demo sandbox is read-only
 
 ### **External Services**
 - **Payments**: Cashfree, Stripe
@@ -163,6 +196,7 @@ What started as a vision to simplify tech shopping has evolved into a full-featu
 - **Package Manager**: npm
 - **Code Quality**: ESLint
 - **Deployment**: Vercel (recommended)
+- **Scheduling**: Vercel Cron (CrashCash expiry, email triggers, inactive-user winback, all-tasks sweep)
 
 ---
 
@@ -214,6 +248,7 @@ Before you begin, ensure you have the following installed:
    # STRIPE PAYMENT
    # ============================================
    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxx
+   STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxx
    STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxx
 
    # ============================================
@@ -228,6 +263,12 @@ Before you begin, ensure you have the following installed:
    JWT_SECRET=your-super-secret-jwt-key-min-32-chars
    NEXTAUTH_SECRET=your-nextauth-secret-key-min-32-chars
    NEXTAUTH_URL=http://localhost:3000
+
+   # ============================================
+   # CRON & SCHEDULING
+   # ============================================
+   CRON_SECRET=your-cron-shared-secret
+   CRASHCASH_CRON_SECRET=your-crashcash-cron-secret
 
    # ============================================
    # EMAIL SERVICE
@@ -308,6 +349,18 @@ Before you begin, ensure you have the following installed:
 - Sign up at [cashfree.com](https://www.cashfree.com)
 - Get credentials from Dashboard → Developers
 - Use sandbox mode for testing
+</details>
+
+<details>
+<summary><b>Cron & Scheduling</b></summary>
+
+- `CRON_SECRET`: Shared token for cron endpoints (`/api/cron`, `/api/cron/check-inactive-users`, `/api/cron/email-triggers`). Accepts `Authorization: Bearer <token>` or `?token=`.
+- `CRASHCASH_CRON_SECRET`: Token for `/api/cron/expire-crashcash` (also accepts `?secret=`). Vercel Cron bypasses when `x-vercel-cron=1` in production.
+- Vercel cron schedules (UTC):
+   - 02:00 → `/api/cron/expire-crashcash`
+   - Hourly → `/api/cron/email-triggers`
+   - 03:30 → `/api/cron/check-inactive-users`
+   - 04:00 → `/api/cron?task=all`
 </details>
 
 <details>
@@ -421,6 +474,7 @@ crashkart/
 1. **Access Admin Panel** 
    - **Production**: https://crashkart.vercel.app/admin/login
    - **Local Development**: http://localhost:3000/admin/login
+   - **Demo Mode**: toggle on the login screen to explore without affecting data
 2. **Manage Products** - Add/edit/delete products
 3. **Process Orders** - Update order statuses (including return/refund flows)
 4. **Toggle Payment Status** - Click payment badge to mark orders as Paid/Pending

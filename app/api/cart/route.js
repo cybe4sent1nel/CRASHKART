@@ -1,13 +1,13 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-
-const prisma = new PrismaClient()
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 // GET - Fetch user's cart items
 export async function GET(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(
@@ -51,7 +51,8 @@ export async function GET(req) {
 // POST - Add item to cart
 export async function POST(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(
@@ -117,7 +118,8 @@ export async function POST(req) {
 // DELETE - Remove item from cart
 export async function DELETE(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(

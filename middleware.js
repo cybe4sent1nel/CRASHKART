@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server'
 
-// Placeholder middleware - authentication handled via localStorage
 export function middleware(request) {
-    // Allow all requests to pass through
+    const { pathname } = request.nextUrl
+    const method = request.method.toUpperCase()
+    const isAdminApi = pathname.startsWith('/api/admin')
+    const isDemo = request.cookies.get('admin_demo')?.value === '1'
+
+    // Block server-side mutations for demo admins so the real app/data is never touched
+    if (isDemo && isAdminApi && method !== 'GET') {
+        return NextResponse.json(
+            {
+                success: true,
+                demo: true,
+                message: 'Demo mode: operation simulated, no data changed.',
+            },
+            { status: 200 }
+        )
+    }
+
+    // Allow all other requests to pass through
     return NextResponse.next()
 }
 

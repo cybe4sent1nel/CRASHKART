@@ -2,19 +2,23 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendAbandonedCartEmail, sendPriceDropEmail, sendBackInStockEmail, sendFlashSaleEmail } from '@/lib/email';
 
-// This endpoint should be called by a cron job (e.g., Vercel Cron, GitHub Actions, etc.)
-// Call with proper authorization token
-export async function POST(request) {
+// Shared handler that works for both GET (Vercel cron) and POST
+async function handleCron(request) {
   try {
-    // Verify cron secret
-    const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token');
+    const authHeader = request.headers.get('authorization');
+    const provided = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : token;
+
+    if (cronSecret && provided !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { task } = await request.json();
+    const payload = request.method === 'POST' ? await request.json() : {};
+    const task = url.searchParams.get('task') || payload.task || 'all';
     
     let result;
     
@@ -54,6 +58,15 @@ export async function POST(request) {
     console.error('Cron job error:', error);
     return NextResponse.json({ error: 'Cron job failed', details: error.message }, { status: 500 });
   }
+}
+
+// This endpoint should be called by a cron job (e.g., Vercel Cron)
+export async function POST(request) {
+  return handleCron(request);
+}
+
+export async function GET(request) {
+  return handleCron(request);
 }
 
 // Process abandoned carts - send reminder emails
@@ -304,11 +317,4 @@ async function cleanupExpiredData() {
   };
 }
 
-// GET endpoint for health check
-export async function GET() {
-  return NextResponse.json({
-    status: 'healthy',
-    availableTasks: ['abandoned-cart', 'price-alerts', 'stock-alerts', 'cleanup', 'all'],
-    timestamp: new Date().toISOString()
-  });
-}
+// Health info is covered via handleCron GET; no extra handler needed.

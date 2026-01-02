@@ -69,6 +69,13 @@ const OrderSummary = ({ totalPrice, items }) => {
         setShowPaymentProcessing(true);
 
         try {
+            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+            if (!token) {
+                toast.error('Please sign in to place the order')
+                router.push('/login')
+                return
+            }
+
             // Call API to create order and get real order ID
             const orderPayload = {
                 items: items,
@@ -85,12 +92,23 @@ const OrderSummary = ({ totalPrice, items }) => {
             const response = await fetch('/api/orders/create', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(orderPayload)
             });
 
             const result = await response.json();
+
+            if (response.status === 401) {
+                toast.error('Session expired. Please sign in again.')
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('token')
+                    localStorage.removeItem('user')
+                }
+                router.push('/login')
+                return
+            }
 
             if (!response.ok || !result.orderId) {
                 throw new Error(result.message || 'Failed to create order');
@@ -277,10 +295,6 @@ const OrderSummary = ({ totalPrice, items }) => {
             <div className='flex gap-2 items-center'>
                 <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500' />
                 <label htmlFor="COD" className='cursor-pointer'>COD</label>
-            </div>
-            <div className='flex gap-2 items-center mt-1'>
-                <input type="radio" id="STRIPE" name='payment' onChange={() => setPaymentMethod('STRIPE')} checked={paymentMethod === 'STRIPE'} className='accent-gray-500' />
-                <label htmlFor="STRIPE" className='cursor-pointer'>Stripe Payment</label>
             </div>
             <div className='my-4 py-4 border-y border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'>
                 <p className='mb-2'>Delivery Address</p>

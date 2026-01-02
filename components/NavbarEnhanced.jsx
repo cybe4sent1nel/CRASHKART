@@ -6,6 +6,8 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
+import LogoutConfirmModal from "./LogoutConfirmModal";
+import { performLogout } from "@/lib/logout";
 
 const NavbarEnhanced = () => {
 
@@ -15,6 +17,8 @@ const NavbarEnhanced = () => {
     const [user, setUser] = useState(null)
     const [showMenu, setShowMenu] = useState(false)
     const [showFloatingDock, setShowFloatingDock] = useState(false)
+    const [showLogoutModal, setShowLogoutModal] = useState(false)
+    const [loggingOut, setLoggingOut] = useState(false)
     const cartCount = useSelector(state => state.cart.total)
     const wishlistCount = useSelector(state => state.wishlist?.total || 0)
 
@@ -35,10 +39,20 @@ const NavbarEnhanced = () => {
     }
 
     const handleLogout = () => {
-        localStorage.removeItem('user')
-        setUser(null)
-        setShowMenu(false)
-        router.push('/')
+        setShowLogoutModal(true)
+    }
+
+    const confirmLogout = async (allDevices = false) => {
+        setLoggingOut(true)
+        try {
+            await performLogout({ allDevices })
+            setUser(null)
+            setShowMenu(false)
+            router.push('/')
+        } finally {
+            setLoggingOut(false)
+            setShowLogoutModal(false)
+        }
     }
 
     // Floating dock items
@@ -167,6 +181,13 @@ const NavbarEnhanced = () => {
                 </div>
             </div>
             <hr className="border-gray-300" />
+
+            <LogoutConfirmModal
+                open={showLogoutModal}
+                onClose={() => setShowLogoutModal(false)}
+                onConfirm={confirmLogout}
+                loading={loggingOut}
+            />
         </nav>
     )
 }

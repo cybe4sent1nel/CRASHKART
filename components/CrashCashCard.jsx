@@ -9,22 +9,25 @@ export default function CrashCashCard({ product }) {
 
     const { price } = product
     
-    // Calculate CrashCash value: 5% of product price (you can adjust this percentage)
-    const crashCashPercentage = 5
-    const calculatedCrashCash = Math.round((price * crashCashPercentage) / 100)
+    // Calculate CrashCash value: Up to 5% of product price (will be randomized 1-5% on order)
+    const maxPercentage = 5
+    const calculatedCrashCash = Math.round((price * maxPercentage) / 100)
     
     // Use product's crashCashValue if set, otherwise use calculated value
     const crashCashValue = product.crashCashValue || calculatedCrashCash
     const crashCashMin = product.crashCashMin || 10
-    const crashCashMax = product.crashCashMax || 500
+    
+    // Calculate max redeemable amount: up to 5% of product price
+    const calculatedCrashCashMax = Math.round((price * maxPercentage) / 100)
+    const crashCashMax = product.crashCashMax || calculatedCrashCashMax
     
     // Skip if calculated value is 0 or negative
     if (crashCashValue <= 0) {
         return null
     }
     
-    // Calculate percentage
-    const percentage = price > 0 ? ((crashCashValue / price) * 100).toFixed(0) : 0
+    // Display percentage as "up to 5%"
+    const percentage = `up to ${maxPercentage}`
 
     return (
         <motion.div 
@@ -50,7 +53,7 @@ export default function CrashCashCard({ product }) {
                             ₹{crashCashValue}
                         </span>
                         <span className="text-sm text-orange-700 dark:text-orange-300">
-                            CrashCash on this purchase
+                            earn on this purchase
                         </span>
                     </div>
                     
@@ -58,13 +61,13 @@ export default function CrashCashCard({ product }) {
                         <div className="flex items-start gap-2">
                             <Gift className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
                             <p>
-                                Earn <strong className="text-orange-600 dark:text-orange-400">₹{crashCashValue}</strong> CrashCash when you buy this product
+                                You'll earn between <strong className="text-orange-600 dark:text-orange-400">₹{Math.round((price * 1) / 100)}-₹{crashCashValue}</strong> (1-5% of price) when you buy this product
                             </p>
                         </div>
                         <div className="flex items-start gap-2">
                             <Info className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
                             <p>
-                                Use CrashCash on your next order. Redeem minimum ₹{crashCashMin}, maximum ₹{crashCashMax} per order
+                                You can redeem up to <strong className="text-orange-600 dark:text-orange-400">₹{crashCashMax}</strong> (5% of product price) on future orders
                             </p>
                         </div>
                     </div>

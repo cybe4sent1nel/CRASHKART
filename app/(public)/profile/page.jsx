@@ -1,13 +1,16 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Edit2, Save, X, User, Mail, Phone, MapPin, Camera, Shield, ShoppingBag, Heart, CreditCard, LogOut, Settings, Bell, Gift, Coins, MessageSquare, Tag, Package, Megaphone, Star } from 'lucide-react'
+import { Edit2, Save, X, User, Mail, Phone, MapPin, Camera, Shield, ShoppingBag, Heart, CreditCard, LogOut, Settings, Bell, Gift, Coins, MessageSquare, Tag, Package, Megaphone, Star, Eye, EyeOff, CheckCircle, AlertCircle, Lock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import NeonCheckbox from '@/components/NeonCheckbox'
 import AddressForm from '@/components/AddressForm'
 import MyReviews from '@/components/MyReviews'
+import LogoutConfirmModal from '@/components/LogoutConfirmModal'
+import { performLogout } from '@/lib/logout'
+import { passwordStrength, passwordIssues } from '@/lib/passwordPolicy'
 
 export default function Profile() {
     const router = useRouter()
@@ -20,6 +23,15 @@ export default function Profile() {
     const [addresses, setAddresses] = useState([])
     const [loadingAddresses, setLoadingAddresses] = useState(false)
     const [activeSection, setActiveSection] = useState('profile')
+    const [showLogoutModal, setShowLogoutModal] = useState(false)
+    const [loggingOut, setLoggingOut] = useState(false)
+    const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' })
+    const [passwordStrengthState, setPasswordStrengthState] = useState(passwordStrength(''))
+    const [passwordIssuesList, setPasswordIssuesList] = useState(passwordIssues(''))
+    const [passwordLoading, setPasswordLoading] = useState(false)
+    const [showPasswordOld, setShowPasswordOld] = useState(false)
+    const [showPasswordNew, setShowPasswordNew] = useState(false)
+    const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -102,6 +114,72 @@ export default function Profile() {
         setNotifications(newNotifications)
         localStorage.setItem('notificationPreferences', JSON.stringify(newNotifications))
         toast.success('Notification preference updated!')
+    }
+
+    const handlePasswordFieldChange = (field, value) => {
+        setPasswordForm(prev => ({ ...prev, [field]: value }))
+        if (field === 'newPassword') {
+            setPasswordStrengthState(passwordStrength(value))
+            setPasswordIssuesList(passwordIssues(value))
+        }
+    }
+
+    const handlePasswordSubmit = async (e) => {
+        e?.preventDefault()
+        setPasswordLoading(true)
+        try {
+            if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+                toast.error('Passwords do not match')
+                setPasswordLoading(false)
+                return
+            }
+
+            const issuesNow = passwordIssues(passwordForm.newPassword)
+            setPasswordIssuesList(issuesNow)
+            if (issuesNow.length > 0) {
+                toast.error('Password does not meet the required strength')
+                setPasswordLoading(false)
+                return
+            }
+
+            const token = localStorage.getItem('token')
+            if (!token) {
+                toast.error('Please login again')
+                setPasswordLoading(false)
+                return
+            }
+
+            const response = await fetch('/api/auth/update-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    oldPassword: passwordForm.oldPassword || undefined,
+                    newPassword: passwordForm.newPassword,
+                    confirmPassword: passwordForm.confirmPassword
+                })
+            })
+
+            const data = await response.json()
+
+            if (!response.ok || !data.success) {
+                if (data?.issues) setPasswordIssuesList(data.issues)
+                toast.error(data?.error || 'Failed to update password')
+                return
+            }
+
+            toast.success('Password updated successfully')
+            setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' })
+            setPasswordStrengthState(passwordStrength(''))
+            setPasswordIssuesList(passwordIssues(''))
+        } catch (error) {
+            console.error('Password update failed:', error)
+            toast.error('Failed to update password')
+        } finally {
+            setPasswordLoading(false)
+        }
     }
 
     const handleDeleteAddress = async (addressId) => {
@@ -282,9 +360,22 @@ export default function Profile() {
     }
 
     const handleLogout = () => {
-        localStorage.removeItem('user')
-        toast.success('Logged out successfully')
-        router.push('/login')
+        setShowLogoutModal(true)
+    }
+
+    const confirmLogout = async (allDevices = false) => {
+        setLoggingOut(true)
+        try {
+            await performLogout({ allDevices })
+            toast.success('Logged out successfully')
+            router.push('/login')
+        } catch (error) {
+            console.error('Logout failed:', error)
+            toast.error('Failed to logout')
+        } finally {
+            setLoggingOut(false)
+            setShowLogoutModal(false)
+        }
     }
 
     if (!user) return (
@@ -302,8 +393,22 @@ export default function Profile() {
         { icon: CreditCard, label: 'Payments', href: '/profile', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-500' },
     ]
 
+    const passwordRequirements = [
+        { label: 'At least 8 characters', met: passwordForm.newPassword.length >= 8 },
+        { label: 'One uppercase letter', met: /[A-Z]/.test(passwordForm.newPassword) },
+        { label: 'One lowercase letter', met: /[a-z]/.test(passwordForm.newPassword) },
+        { label: 'One number', met: /\d/.test(passwordForm.newPassword) },
+        { label: 'One special character', met: /[^A-Za-z0-9]/.test(passwordForm.newPassword) },
+    ]
+
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
+            <LogoutConfirmModal
+                open={showLogoutModal}
+                onClose={() => setShowLogoutModal(false)}
+                onConfirm={confirmLogout}
+                loading={loggingOut}
+            />
             <div className="max-w-5xl mx-auto px-4 sm:px-6">
                 {/* Profile Header */}
                 <motion.div 
@@ -591,6 +696,165 @@ export default function Profile() {
                             </form>
                         )}
                     </div>
+                </motion.div>
+
+                {/* Password & Security */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.22 }}
+                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden mt-6"
+                >
+                    <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                                <Shield className="w-5 h-5 text-red-500" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-semibold text-slate-800 dark:text-white">Password & Security</h2>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Set or update your account password. Enter your current password if you already have one.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form onSubmit={handlePasswordSubmit} className="p-6 space-y-5">
+                        <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="sm:col-span-2">
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    <Lock size={16} />
+                                    Current Password
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showPasswordOld ? 'text' : 'password'}
+                                        value={passwordForm.oldPassword}
+                                        onChange={(e) => handlePasswordFieldChange('oldPassword', e.target.value)}
+                                        placeholder="Leave blank if setting a password for the first time"
+                                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPasswordOld(!showPasswordOld)}
+                                        className="absolute inset-y-0 right-3 flex items-center text-slate-500 hover:text-slate-700"
+                                    >
+                                        {showPasswordOld ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                        <Lock size={16} />
+                                        New Password
+                                    </label>
+                                    <span
+                                        className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                            passwordStrengthState.score >= 4
+                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200'
+                                                : passwordStrengthState.score === 3
+                                                    ? 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-200'
+                                                    : passwordStrengthState.score === 2
+                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200'
+                                        }`}
+                                    >
+                                        {passwordStrengthState.label || 'Too weak'}
+                                    </span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type={showPasswordNew ? 'text' : 'password'}
+                                        value={passwordForm.newPassword}
+                                        onChange={(e) => handlePasswordFieldChange('newPassword', e.target.value)}
+                                        required
+                                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPasswordNew(!showPasswordNew)}
+                                        className="absolute inset-y-0 right-3 flex items-center text-slate-500 hover:text-slate-700"
+                                    >
+                                        {showPasswordNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                                <div className="mt-2">
+                                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full transition-all duration-300 ${passwordStrengthState.score >= 4 ? 'bg-green-500' : passwordStrengthState.score === 3 ? 'bg-lime-500' : passwordStrengthState.score === 2 ? 'bg-amber-400' : 'bg-red-500'}`}
+                                            style={{ width: `${passwordStrengthState.percent || 0}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Strength: {passwordStrengthState.label || 'Too weak'}</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    <Lock size={16} />
+                                    Confirm New Password
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showPasswordConfirm ? 'text' : 'password'}
+                                        value={passwordForm.confirmPassword}
+                                        onChange={(e) => handlePasswordFieldChange('confirmPassword', e.target.value)}
+                                        required
+                                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                                        className="absolute inset-y-0 right-3 flex items-center text-slate-500 hover:text-slate-700"
+                                    >
+                                        {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-3">
+                            {passwordRequirements.map((req) => (
+                                <div key={req.label} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                                    {req.met ? (
+                                        <CheckCircle size={16} className="text-green-500" />
+                                    ) : (
+                                        <AlertCircle size={16} className="text-amber-500" />
+                                    )}
+                                    <span>{req.label}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {passwordForm.newPassword && passwordIssuesList.length > 0 && (
+                            <div className="flex items-start gap-2 text-sm text-amber-600 dark:text-amber-400">
+                                <AlertCircle size={16} className="mt-0.5" />
+                                <span>Make sure you include: {passwordIssuesList.join(', ')}.</span>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' })
+                                    setPasswordStrengthState(passwordStrength(''))
+                                    setPasswordIssuesList(passwordIssues(''))
+                                }}
+                                className="px-4 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                                disabled={passwordLoading}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={passwordLoading}
+                                className="px-5 py-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition disabled:opacity-60"
+                            >
+                                {passwordLoading ? 'Saving...' : 'Update Password'}
+                            </button>
+                        </div>
+                    </form>
                 </motion.div>
 
                 {/* Saved Addresses */}

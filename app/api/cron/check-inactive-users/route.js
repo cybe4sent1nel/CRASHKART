@@ -13,13 +13,17 @@ const generateCouponCode = () => {
   return code
 }
 
-export async function POST(request) {
+async function handle(request) {
   try {
     // Verify this is a cron request (in production, verify with cron secret)
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
+    const token = request.nextUrl?.searchParams?.get('token')
+    const provided = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : token
     
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (cronSecret && provided !== cronSecret) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
@@ -134,4 +138,12 @@ export async function POST(request) {
       { status: 500 }
     )
   }
+}
+
+export async function POST(request) {
+  return handle(request)
+}
+
+export async function GET(request) {
+  return handle(request)
 }

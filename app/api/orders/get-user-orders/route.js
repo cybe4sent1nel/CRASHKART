@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+;
 import { jwtVerify } from 'jose';
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic';
 
 // GET and POST - Get all orders for the current user
 export async function GET(request) {
@@ -15,7 +18,8 @@ export async function POST(request) {
 
 async function handleOrdersRequest(request) {
     try {
-        let userEmail = null;
+                const { authOptions } = await import('@/lib/auth')
+let userEmail = null;
         let userId = null;
 
         // First try: Get user from NextAuth session
@@ -30,7 +34,8 @@ async function handleOrdersRequest(request) {
             if (authHeader?.startsWith('Bearer ')) {
                 const token = authHeader.substring(7);
                 try {
-                    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'your-secret-key');
+                            const { authOptions } = await import('@/lib/auth')
+const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'your-secret-key');
                     const verified = await jwtVerify(token, secret);
                     userEmail = verified.payload.email;
                 } catch (err) {
@@ -42,7 +47,8 @@ async function handleOrdersRequest(request) {
         // Third try: Get user from localStorage data sent in request (fallback for frontend)
         if (!userEmail) {
             try {
-                const body = await request.json().catch(() => ({}));
+                        const { authOptions } = await import('@/lib/auth')
+const body = await request.json().catch(() => ({}));
                 userEmail = body.email;
             } catch (e) {
                 // Ignore if no body
@@ -99,9 +105,10 @@ async function handleOrdersRequest(request) {
                     }
                 }
             },
-            orderBy: {
-                createdAt: 'desc'
-            }
+            orderBy: [
+                { updatedAt: 'desc' },
+                { createdAt: 'desc' }
+            ]
         });
         
         console.log(`✅ [Get User Orders] Found ${orders.length} orders for user ${user.email}`)

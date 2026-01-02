@@ -1,11 +1,12 @@
 'use client'
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { CreditCard, Smartphone, MapPin, ShoppingBag, ChevronLeft, Lock, AlertCircle } from 'lucide-react'
+import { CreditCard, Smartphone, MapPin, ShoppingBag, ChevronLeft, Lock, AlertCircle, Tag } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import LottieAnimation from '@/components/LottieAnimation'
 import checkoutAnimData from '@/public/animations/pos mastercard.json'
+import AnimationBackground from '@/components/AnimationBackground'
 
 export default function PaymentMethod() {
      const router = useRouter()
@@ -65,6 +66,13 @@ export default function PaymentMethod() {
 
         setLoading(true)
         try {
+            const token = localStorage.getItem('token')
+            if (!token) {
+                toast.error('Please sign in to place the order')
+                router.push('/login')
+                return
+            }
+
             // Cash on Delivery - create order directly without Cashfree
             if (selectedMethod === 'cod') {
                 const paymentData = {
@@ -73,7 +81,6 @@ export default function PaymentMethod() {
                     timestamp: new Date().toISOString()
                 }
 
-                const token = localStorage.getItem('token')
                 const response = await fetch('/api/orders/create', {
                     method: 'POST',
                     headers: {
@@ -84,6 +91,14 @@ export default function PaymentMethod() {
                 })
 
                 const result = await response.json()
+
+                if (response.status === 401) {
+                    toast.error('Session expired. Please sign in again.')
+                    localStorage.removeItem('token')
+                    localStorage.removeItem('user')
+                    router.push('/login')
+                    return
+                }
 
                 if (!response.ok) {
                     throw new Error(result.message || 'Order creation failed')
@@ -100,18 +115,47 @@ export default function PaymentMethod() {
                 return
             }
 
-            // Both cashfree and card payment methods route to Cashfree
+            // 💳 Card/UPI payment methods - Create Cashfree order NOW (not before!)
             if (selectedMethod === 'cashfree' || selectedMethod === 'card') {
-                if (!checkoutData?.paymentSessionId) {
-                    throw new Error('Payment session not available')
+                console.log('💳 User selected Card/UPI payment - Creating Cashfree order NOW...')
+                
+                // Create Cashfree order ONLY when user confirms Card/UPI payment
+                const response = await fetch('/api/payments/cashfree-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(checkoutData)
+                })
+
+                const orderData = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(orderData.message || 'Failed to create payment order')
                 }
+
+                console.log('✅ Cashfree Order Created:', {
+                    orderId: orderData.orderId,
+                    cashfreeOrderId: orderData.cashfreeOrderId,
+                    paymentSessionId: orderData.paymentSessionId?.substring(0, 30)
+                })
+
+                // Update checkout data with Cashfree details
+                const updatedCheckoutData = {
+                    ...checkoutData,
+                    orderId: orderData.orderId,
+                    cashfreeOrderId: orderData.cashfreeOrderId,
+                    paymentSessionId: orderData.paymentSessionId
+                }
+                sessionStorage.setItem('checkoutData', JSON.stringify(updatedCheckoutData))
                 
                 // Use Cashfree JS SDK for checkout
-                console.log('🔄 Opening Cashfree checkout with session:', checkoutData.paymentSessionId?.substring(0, 50))
+                console.log('🔄 Opening Cashfree checkout with session:', orderData.paymentSessionId?.substring(0, 50))
                 toast.success('Opening Cashfree checkout...')
                 
                 // Store order ID for potential return handling
-                sessionStorage.setItem('cashfreeOrderId', checkoutData.orderId)
+                sessionStorage.setItem('cashfreeOrderId', orderData.orderId)
                 
                 // Load Cashfree SDK if not already loaded
                 if (!window.Cashfree) {
@@ -119,14 +163,14 @@ export default function PaymentMethod() {
                     const script = document.createElement('script')
                     script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js'
                     script.onload = () => {
-                        openCashfreeCheckout(checkoutData.paymentSessionId)
+                        openCashfreeCheckout(orderData.paymentSessionId)
                     }
                     script.onerror = () => {
                         throw new Error('Failed to load Cashfree SDK')
                     }
                     document.body.appendChild(script)
                 } else {
-                    openCashfreeCheckout(checkoutData.paymentSessionId)
+                    openCashfreeCheckout(orderData.paymentSessionId)
                 }
                 return // Stop here, SDK will handle checkout
             }
@@ -144,7 +188,7 @@ export default function PaymentMethod() {
     return (
         <>
             {/* Checkout Processing Animation Overlay */}
-            {loading && selectedMethod === 'cashfree' && (
+            {loading && (
                 <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -166,15 +210,18 @@ export default function PaymentMethod() {
                             animate={{ opacity: [0.6, 1, 0.6] }}
                             transition={{ duration: 1.5, repeat: Infinity }}
                         >
-                            Processing Payment...
+                            {selectedMethod === 'cod' ? 'Processing Order...' : 'Processing Payment...'}
                         </motion.p>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Redirecting to Cashfree Secure Checkout
+                            {selectedMethod === 'cod' 
+                                ? 'Creating your Cash on Delivery order' 
+                                : 'Redirecting to Cashfree Secure Checkout'}
                         </p>
                     </motion.div>
                 </motion.div>
             )}
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-12">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-12 relative overflow-hidden">
+            <AnimationBackground animationPath={'/Online Payments.json'} opacity={0.08} className="top-0 left-0 h-full w-full" />
             <div className="max-w-4xl mx-auto px-4">
                 {/* Header */}
                 <button

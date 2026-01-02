@@ -149,10 +149,10 @@ const ProductCard = ({ product }) => {
                     </div>
                     <div className='flex flex-col gap-1'>
                         <p className='font-semibold'>{currency}{product.price}</p>
-                        {product.crashCashValue && (
+                        {product.price && (
                             <div className='flex items-center gap-1 text-xs text-amber-700 font-medium'>
                                 <img src="/crashcash.ico" alt="Crash Cash" className="w-3 h-3" />
-                                <span>-{currency}{product.crashCashValue}</span>
+                                <span>Max {currency}{product.crashCashMax || Math.round((product.price * 5) / 100)}</span>
                             </div>
                         )}
                         {/* Hide quantity in shop view */}

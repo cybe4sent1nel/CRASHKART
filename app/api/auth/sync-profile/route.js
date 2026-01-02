@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 export async function POST(request) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
 
         if (!session?.user?.email) {
             console.warn('No session or email found')

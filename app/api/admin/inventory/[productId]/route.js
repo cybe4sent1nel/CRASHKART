@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
  */
 export async function PUT(request, { params }) {
     try {
-        const { productId } = await params;
+        const { productId } = params;
 
         if (!productId) {
             return NextResponse.json(
@@ -44,7 +44,7 @@ export async function PUT(request, { params }) {
  */
 export async function GET(request, { params }) {
     try {
-        const { productId } = await params;
+        const { productId } = params;
 
         if (!productId) {
             return NextResponse.json(

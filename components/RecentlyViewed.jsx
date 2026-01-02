@@ -27,6 +27,12 @@ export default function RecentlyViewed() {
 
     const handleAddToCart = (product, e) => {
         e.preventDefault()
+        try {
+            import('@/lib/cartOverrides').then(mod => {
+                const CartOverrides = mod.CartOverrides || mod.default
+                CartOverrides.set(product.id, { salePrice: product.salePrice || product.price, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+            }).catch(() => {})
+        } catch (e) {}
         dispatch(addToCart({ productId: product.id }))
         toast.success(`${product.name} added to cart!`)
     }

@@ -1,13 +1,15 @@
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 const prisma = new PrismaClient()
 
 // GET - Fetch user's scratch cards/rewards
 export async function GET(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(
@@ -48,7 +50,8 @@ export async function GET(req) {
 // POST - Create/reveal scratch card reward
 export async function POST(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(
@@ -77,14 +80,15 @@ export async function POST(req) {
             )
         }
 
-        // Create scratch card reward
+        // Create scratch card reward; default expiry 30 days for scratch/coupon rewards
+        const defaultExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         const scratchCard = await prisma.scratchCard.create({
             data: {
                 userId: user.id,
                 rewardType: rewardType,
                 rewardValue: rewardValue,
                 rewardCode: rewardCode || null,
-                expiresAt: expiresAt ? new Date(expiresAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days default
+                expiresAt: expiresAt ? new Date(expiresAt) : defaultExpiry
             }
         })
 
@@ -105,7 +109,8 @@ export async function POST(req) {
 // PATCH - Mark scratch card as used
 export async function PATCH(req) {
     try {
-        const session = await getServerSession(authOptions)
+                const { authOptions } = await import('@/lib/auth')
+const session = await getServerSession(authOptions)
         
         if (!session?.user?.email) {
             return Response.json(

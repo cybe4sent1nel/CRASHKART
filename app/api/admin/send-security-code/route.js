@@ -4,10 +4,13 @@ export async function POST(req) {
     try {
         const { email } = await req.json()
 
-        // Only crashkart.help@gmail.com can use this endpoint
-        if (email !== 'crashkart.help@gmail.com') {
+        // Check if email is in admin database (dynamic import to avoid build issues)
+        const { isAdmin } = await import('@/lib/adminAuth')
+        const userIsAdmin = await isAdmin(email)
+        
+        if (!userIsAdmin) {
             return Response.json(
-                { message: 'Unauthorized email address' },
+                { message: 'Unauthorized - Not an admin' },
                 { status: 403 }
             )
         }

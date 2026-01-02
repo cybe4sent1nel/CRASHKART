@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { verifyUserToken } from '@/lib/authTokens'
 
 // Helper function to format phone number for Cashfree
 const formatPhoneNumber = (phone) => {
@@ -61,14 +61,13 @@ export async function POST(req) {
         }
 
         const token = authHeader.slice(7)
+        let user
         let userEmail
-        
+
         try {
-            const decoded = jwt.verify(
-                token,
-                process.env.JWT_SECRET || 'your-secret-key'
-            )
-            userEmail = decoded.email
+            const verified = await verifyUserToken(token)
+            user = verified.user
+            userEmail = user.email
         } catch (err) {
             return Response.json(
                 { message: 'Invalid token' },
@@ -83,18 +82,6 @@ export async function POST(req) {
             return Response.json(
                 { message: 'Order ID and total are required' },
                 { status: 400 }
-            )
-        }
-
-        // Get user from database
-        const user = await prisma.user.findUnique({
-            where: { email: userEmail }
-        })
-
-        if (!user) {
-            return Response.json(
-                { message: 'User not found' },
-                { status: 404 }
             )
         }
 
@@ -138,7 +125,8 @@ export async function POST(req) {
         // Generate and sanitize URLs
         const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
         const notifyUrl = sanitizeUrl(`${baseAppUrl}/api/payments/cashfree-webhook`)
-        const returnUrl = sanitizeUrl(`${baseAppUrl}/order-success/${orderId}`)
+        // Redirect users to a dedicated payment received page after successful payment
+        const returnUrl = sanitizeUrl(`${baseAppUrl}/payment-received/${orderId}`)
         
         console.log('🔗 URL Sanitization:')
         console.log('  Notify URL:', notifyUrl)

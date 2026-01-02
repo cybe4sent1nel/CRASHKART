@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "types": ["node", "estree"],
+    "typeRoots": ["./node_modules/@types"],
     "paths": {
       "@/*": ["./*"]
     }

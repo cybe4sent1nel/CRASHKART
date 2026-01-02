@@ -22,7 +22,15 @@ export function TypingAnimation({
   cursorStyle = "line",
   ...props
 }) {
-  const MotionComponent = motion(Component)
+  const MotionComponent = useMemo(() => {
+    // Cache motion-wrapped components by reference to avoid recreating during render
+    const cache = TypingAnimation._motionCache || new WeakMap()
+    TypingAnimation._motionCache = cache
+    if (cache.has(Component)) return cache.get(Component)
+    const wrapped = motion(Component)
+    cache.set(Component, wrapped)
+    return wrapped
+  }, [Component])
 
   const [displayedText, setDisplayedText] = useState("")
   const [currentWordIndex, setCurrentWordIndex] = useState(0)

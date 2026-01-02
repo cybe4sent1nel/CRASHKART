@@ -1,58 +1,99 @@
-'use client'
+ 'use client'
 
 import { useState, useEffect } from 'react'
+// Lottie overlay removed from card; background component will render the animation
 import { TrendingUp, Gift, Calendar, ShoppingCart, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import AnimationBackground from './AnimationBackground'
+import LottieAnimation from './LottieAnimation'
 import { removeDuplicateRewards } from '@/lib/fixCrashcashBalance'
 import { updateCrashCashBalance } from '@/lib/crashcashStorage'
 
 export default function CrashCashBalance() {
+    const [cashJumpAnim, setCashJumpAnim] = useState(null)
+    
     const [balance, setBalance] = useState(0)
     const [scratchRewards, setScratchRewards] = useState([])
     const [orderRewards, setOrderRewards] = useState([])
+    const [bonusRewards, setBonusRewards] = useState([])
     const [lastWin, setLastWin] = useState(null)
-    const [mounted, setMounted] = useState(false)
+    const [mounted, setMounted] = useState(() => typeof window !== 'undefined')
+    
 
     useEffect(() => {
-        const loadData = () => {
-            // Remove any duplicate rewards (this will recalculate balance correctly)
-            removeDuplicateRewards()
-            
-            // Use unified balance calculation from crashcashStorage
-            const calculatedBalance = updateCrashCashBalance()
-            setBalance(calculatedBalance)
-            console.log('💰 CrashCash page loaded balance:', calculatedBalance)
-            
-            // Get scratch card rewards
-            const saved = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
-            const scratchRewardsOnly = saved.filter(r => r.type === 'reward') || []
-            setScratchRewards(scratchRewardsOnly)
+        let mounted = true
 
-            // Get order rewards
-            const orders = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
-            setOrderRewards(orders || [])
+        const loadFromServer = async () => {
+            try {
+                const user = JSON.parse(localStorage.getItem('user') || '{}')
+                const userId = user.id
+                if (!userId) return
 
-            // Get last win info
-            const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
-            setLastWin(lastWinInfo)
+                // Live balance
+                const balResp = await fetch(`/api/crashcash/balance?userId=${userId}`)
+                if (balResp.ok) {
+                    const b = await balResp.json()
+                    if (mounted) setBalance(b.balance || 0)
+                }
+
+                // Rewards
+                const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`)
+                if (rewardsResp.ok) {
+                    const data = await rewardsResp.json()
+                    if (mounted) {
+                        const active = data.activeRewards || []
+                        setScratchRewards(active.filter(r => r.source === 'scratch_card'))
+                        setOrderRewards(active.filter(r => r.source === 'order_placed'))
+                        setBonusRewards(active.filter(r => r.source === 'welcome_bonus'))
+                    }
+                }
+
+                // last win: fall back to localStorage
+                const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
+                if (mounted) setLastWin(lastWinInfo)
+            } catch (err) {
+                console.warn('Live load failed, falling back to localStorage', err)
+                // Fallback to previous local approach
+                removeDuplicateRewards()
+                const calculatedBalance = updateCrashCashBalance()
+                if (mounted) setBalance(calculatedBalance)
+                const saved = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
+                if (mounted) setScratchRewards(saved.filter(r => r.type === 'reward') || [])
+                const orders = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
+                if (mounted) setOrderRewards(orders || [])
+                const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
+                if (mounted) setLastWin(lastWinInfo)
+            }
         }
 
-        loadData()
-        setMounted(true)
+        loadFromServer()
 
-        // Listen for storage changes
-        const handleStorageChange = () => {
-            loadData()
+        const handler = () => {
+            loadFromServer()
         }
 
-        window.addEventListener('storage', handleStorageChange)
-        window.addEventListener('crashcash-update', handleStorageChange)
-        const interval = setInterval(loadData, 500)
+        window.addEventListener('storage', handler)
+        window.addEventListener('crashcash-update', handler)
+        window.addEventListener('crashcash-added', handler)
 
         return () => {
-            window.removeEventListener('storage', handleStorageChange)
-            window.removeEventListener('crashcash-update', handleStorageChange)
-            clearInterval(interval)
+            mounted = false
+            window.removeEventListener('storage', handler)
+            window.removeEventListener('crashcash-update', handler)
+            window.removeEventListener('crashcash-added', handler)
         }
+    }, [])
+
+    // Load cash jump animation at runtime to avoid Turbopack HMR issues
+    useEffect(() => {
+        let mounted = true
+        fetch('/animations/cash jump.json')
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load cash jump')
+                return res.json()
+            })
+            .then(data => { if (mounted) setCashJumpAnim(data) })
+            .catch(err => console.debug('[CrashCashBalance] failed to load cash jump', err))
+        return () => { mounted = false }
     }, [])
 
     if (!mounted) {
@@ -65,16 +106,32 @@ export default function CrashCashBalance() {
         )
     }
 
-    const allRewards = [...scratchRewards, ...orderRewards].sort((a, b) => {
+    const allRewards = [...scratchRewards, ...orderRewards, ...bonusRewards].sort((a, b) => {
         const dateA = new Date(a.scratchedAt || a.awardedAt || 0)
         const dateB = new Date(b.scratchedAt || b.awardedAt || 0)
         return dateB - dateA
     })
 
     return (
-        <div className="w-full max-w-4xl mx-auto px-4 py-6 space-y-6">
+        <div className="w-full max-w-4xl mx-auto px-4 py-6 space-y-6 relative">
             {/* Main Balance Card */}
-            <div className="bg-gradient-to-br from-amber-100 to-yellow-100 rounded-2xl p-8 shadow-lg">
+            <div className="relative rounded-2xl p-8 shadow-lg bg-white/60 backdrop-blur-sm border border-white/30 overflow-hidden">
+                    {/* Small white card placed inside the balance card (top-right) with animation overlay */}
+                    <div className="absolute top-4 right-6 z-20">
+                        <div className="w-[260px] h-[260px] bg-white rounded-2xl shadow-lg overflow-hidden pointer-events-none flex items-center justify-center border border-gray-200">
+                            {cashJumpAnim ? (
+                                <LottieAnimation
+                                    animationData={cashJumpAnim}
+                                    loop={true}
+                                    autoplay={true}
+                                    style={{ width: '110%', height: '110%', transform: 'translateY(-6%)' }}
+                                />
+                            ) : (
+                                <div className="text-sm text-slate-500">Animation missing</div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="relative z-10">
                 <div className="flex items-center gap-4">
                     <div className="bg-gradient-to-br from-amber-400 to-yellow-500 rounded-full p-4">
                         <img src="/crashcash.ico" alt="CrashCash" className="w-12 h-12" />
@@ -84,6 +141,10 @@ export default function CrashCashBalance() {
                         <p className="text-4xl font-bold text-slate-900">₹{balance}</p>
                     </div>
                 </div>
+                {/* decorative overlay removed */}
+            </div>
+
+            {/* close main balance card */}
             </div>
 
             {/* Last Win Info */}
@@ -120,7 +181,7 @@ export default function CrashCashBalance() {
 
             {/* Scratch Card Rewards */}
             {scratchRewards.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-md border border-slate-200">
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-md border border-white/20">
                     <div className="flex items-center gap-2 mb-4">
                         <Gift size={20} className="text-purple-600" />
                         <h3 className="text-xl font-bold text-slate-900">Scratch Card Rewards ({scratchRewards.length})</h3>
@@ -170,7 +231,7 @@ export default function CrashCashBalance() {
 
             {/* Order Rewards */}
             {orderRewards.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-md border border-slate-200">
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-md border border-white/20">
                     <div className="flex items-center gap-2 mb-4">
                         <ShoppingCart size={20} className="text-blue-600" />
                         <h3 className="text-xl font-bold text-slate-900">Order Rewards ({orderRewards.length})</h3>
@@ -196,6 +257,36 @@ export default function CrashCashBalance() {
                                         <p className="text-lg font-bold text-blue-600">{reward.itemCount}</p>
                                     </div>
                                 </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Bonus Rewards (welcome, promos) */}
+            {bonusRewards.length > 0 && (
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-md border border-white/20">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Gift size={20} className="text-amber-600" />
+                        <h3 className="text-xl font-bold text-slate-900">Bonus Rewards ({bonusRewards.length})</h3>
+                    </div>
+                    <div className="space-y-3">
+                        {bonusRewards.map((reward, idx) => (
+                            <div key={idx} className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border-l-4 border-amber-500">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-slate-900">₹{reward.amount} Bonus CrashCash</p>
+                                        <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
+                                            <Clock size={14} />
+                                            {reward.earnedAt || reward.createdAt}
+                                        </p>
+                                    </div>
+                                </div>
+                                {reward.expiresAt && (
+                                    <p className="text-xs text-slate-600">
+                                        Expires on {new Date(reward.expiresAt).toLocaleDateString()}
+                                    </p>
+                                )}
                             </div>
                         ))}
                     </div>

@@ -8,93 +8,11 @@ const LeafletMap = ({ selectedLocation, onLocationSelect }) => {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() =>
+    typeof navigator !== 'undefined' && !!navigator.geolocation
+  )
 
-  useEffect(() => {
-    if (!mapRef.current) return
-
-    // Initialize map with OpenStreetMap tiles
-    const map = L.map(mapRef.current).setView([20.5937, 78.9629], 5)
-    mapInstanceRef.current = map
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
-    }).addTo(map)
-
-    // Add CrashKart logo with copyright on map
-     const logoControl = L.control({ position: 'bottomright' })
-     logoControl.onAdd = function (map) {
-       const div = L.DomUtil.create('div', 'leaflet-control leaflet-bar')
-       div.innerHTML = `
-         <div style="
-           background: white;
-           padding: 8px 12px;
-           border-radius: 4px;
-           font-size: 11px;
-           color: #666;
-           display: flex;
-           align-items: center;
-           gap: 6px;
-           box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-           font-weight: 500;
-         ">
-           <img src="/logo.bmp" alt="CrashKart" style="width: 16px; height: 16px; object-fit: contain;" />
-           <span>© CrashKart 2025</span>
-         </div>
-       `
-       return div
-     }
-     logoControl.addTo(map)
-
-    // Get user's current location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.setView([latitude, longitude], 13)
-            addMarker(mapInstanceRef.current, { lat: latitude, lng: longitude })
-            reverseGeocodeLocation(latitude, longitude)
-          }
-          setLoading(false)
-        },
-        () => {
-          console.log('Geolocation permission denied or unavailable')
-          setLoading(false)
-        }
-      )
-    } else {
-      setLoading(false)
-    }
-
-    // Add click listener to map
-    map.on('click', (event) => {
-      const { lat, lng } = event.latlng
-      addMarker(map, { lat, lng })
-      reverseGeocodeLocation(lat, lng)
-    })
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
-    }
-  }, [])
-
-  // Update marker when selectedLocation changes
-  useEffect(() => {
-    if (selectedLocation && mapInstanceRef.current) {
-      mapInstanceRef.current.setView([selectedLocation.lat, selectedLocation.lng], 13)
-      addMarker(mapInstanceRef.current, {
-        lat: selectedLocation.lat,
-        lng: selectedLocation.lng
-      })
-    }
-  }, [selectedLocation])
-
-  const addMarker = (map, location) => {
+  function addMarker(map, location) {
     // Remove old marker
     if (markerRef.current) {
       map.removeLayer(markerRef.current)
@@ -164,7 +82,7 @@ const LeafletMap = ({ selectedLocation, onLocationSelect }) => {
     markerRef.current = newMarker
   }
 
-  const reverseGeocodeLocation = async (lat, lng) => {
+  async function reverseGeocodeLocation(lat, lng) {
     try {
       // Use Nominatim for reverse geocoding
       const response = await fetch(
@@ -208,6 +126,88 @@ const LeafletMap = ({ selectedLocation, onLocationSelect }) => {
       console.error('Reverse geocoding error:', error)
     }
   }
+
+  useEffect(() => {
+    if (!mapRef.current) return
+
+    // Initialize map with OpenStreetMap tiles
+    const map = L.map(mapRef.current).setView([20.5937, 78.9629], 5)
+    mapInstanceRef.current = map
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map)
+
+    // Add CrashKart logo with copyright on map
+     const logoControl = L.control({ position: 'bottomright' })
+     logoControl.onAdd = function (map) {
+       const div = L.DomUtil.create('div', 'leaflet-control leaflet-bar')
+       div.innerHTML = `
+         <div style="
+           background: white;
+           padding: 8px 12px;
+           border-radius: 4px;
+           font-size: 11px;
+           color: #666;
+           display: flex;
+           align-items: center;
+           gap: 6px;
+           box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+           font-weight: 500;
+         ">
+           <img src="/logo.bmp" alt="CrashKart" style="width: 16px; height: 16px; object-fit: contain;" />
+           <span>© CrashKart 2025</span>
+         </div>
+       `
+       return div
+     }
+     logoControl.addTo(map)
+
+    // Get user's current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.setView([latitude, longitude], 13)
+            addMarker(mapInstanceRef.current, { lat: latitude, lng: longitude })
+            reverseGeocodeLocation(latitude, longitude)
+          }
+          setLoading(false)
+        },
+        () => {
+          console.log('Geolocation permission denied or unavailable')
+          setLoading(false)
+        }
+      )
+    }
+
+    // Add click listener to map
+    map.on('click', (event) => {
+      const { lat, lng } = event.latlng
+      addMarker(map, { lat, lng })
+      reverseGeocodeLocation(lat, lng)
+    })
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
+    }
+  }, [])
+
+  // Update marker when selectedLocation changes
+  useEffect(() => {
+    if (selectedLocation && mapInstanceRef.current) {
+      mapInstanceRef.current.setView([selectedLocation.lat, selectedLocation.lng], 13)
+      addMarker(mapInstanceRef.current, {
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng
+      })
+    }
+  }, [selectedLocation])
 
   return (
     <div

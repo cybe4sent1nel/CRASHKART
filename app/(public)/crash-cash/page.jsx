@@ -2,9 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Copy, Check, Trash2, Calendar, TrendingUp, History, ShoppingCart, Gift, Wallet } from 'lucide-react'
+import LottieAnimation from '@/components/LottieAnimation'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { updateCrashCashBalance } from '@/lib/crashcashStorage'
+import RewardCard from '@/components/RewardCard'
+import FlyingBackground from '@/components/FlyingBackground'
 
 export default function CrashCashPage() {
     const router = useRouter()
@@ -13,74 +16,261 @@ export default function CrashCashPage() {
     const [expiredCrashCash, setExpiredCrashCash] = useState(0)
     const [copiedCode, setCopiedCode] = useState(null)
     const [activeTab, setActiveTab] = useState('active')
+    const [splashAnim, setSplashAnim] = useState(null)
 
     useEffect(() => {
-         const userData = localStorage.getItem('user')
-         if (!userData) {
-             router.push('/login')
-             return
-         }
-
-         try {
-             const user = JSON.parse(userData)
-             const email = user.email
-             
-             if (!email) {
+         const load = async () => {
+             const userData = localStorage.getItem('user')
+             if (!userData) {
                  router.push('/login')
                  return
              }
-             
-             // Use unified balance calculation from crashcashStorage
-             const balance = updateCrashCashBalance()
-             setTotalCrashCash(balance)
-             console.log('💰 Crash-Cash page loaded balance:', balance)
-             
-             // Load order rewards
-             const orderRewards = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
-             // Load scratch card rewards
-             const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
-                 .filter(r => r.type === 'reward' && r.rewardType === 'crashcash')
-             
-             // Combine all rewards
-             const allRewards = [
-                 ...orderRewards.map(r => ({
-                     ...r,
-                     code: r.orderId || 'ORDER-REWARD',
-                     expiryDate: r.expiresAt,
-                     source: r.source || 'order'
-                 })),
-                 ...scratchRewards.map(r => ({
-                     ...r,
-                     amount: r.crashcash || 0,
-                     code: r.code || 'SCRATCH-REWARD',
-                     expiryDate: r.expiresAt,
-                     source: 'scratch'
-                 }))
-             ]
-             
-             setCrashCashList(allRewards)
 
-             // Calculate expired amount
-             let totalExpired = 0
-             const now = new Date()
-             allRewards.forEach(item => {
-                 if (item.expiryDate && new Date(item.expiryDate) < now) {
-                     totalExpired += item.amount || 0
+             try {
+                 const user = JSON.parse(userData)
+                 const userId = user.id
+                 const email = user.email
+                 
+                 if (!email || !userId) {
+                     router.push('/login')
+                     return
                  }
-             })
 
-             setExpiredCrashCash(totalExpired)
-         } catch (e) {
-             console.error('Error loading crash cash:', e)
-             router.push('/login')
+                 // Try to sync any local scratch/discount crashcash to the server first (avoids missing wins)
+                 const syncLocalCrashcashToServer = async () => {
+                     const token = localStorage.getItem('token')
+                     if (!token) {
+                         console.warn('[CrashCash sync] proceeding without token (rely on session cookies)')
+                     }
+                     try {
+                         const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
+                         const discountRewards = JSON.parse(localStorage.getItem('discountRewards') || '[]')
+                         const candidates = []
+                         const seen = new Set()
+
+                         scratchRewards.forEach(r => {
+                             const isCash = r.type === 'reward' && (r.rewardType === 'crashcash' || (!r.rewardType && (r.crashcash || r.bonusCrashcash)))
+                             const key = `scratch-${r.id || r.code || r.scratchedAt || Date.now()}`
+                             if (isCash && !r.synced && !seen.has(key)) {
+                                 seen.add(key)
+                                 candidates.push({ key, amount: r.crashcash || r.bonusCrashcash || 0, source: 'scratch_card', ref: r })
+                             }
+                             // Handle discount scratches that carry bonusCrashcash
+                             if (r.rewardType === 'discount' && (r.bonusCrashcash || r.amount) && !r.synced) {
+                                 const k2 = `scratch-bonus-${r.id || r.code || r.scratchedAt || Date.now()}`
+                                 if (!seen.has(k2)) {
+                                     seen.add(k2)
+                                     candidates.push({ key: k2, amount: r.bonusCrashcash || r.amount || 0, source: 'scratch_card', ref: r })
+                                 }
+                             }
+                         })
+
+                         discountRewards.forEach(r => {
+                             const isCash = r.rewardType === 'crashcash' || (!r.rewardType && !r.discount && (r.amount || r.bonusCrashcash || r.crashcash))
+                             const hasBonusFromDiscount = r.rewardType === 'discount' && (r.bonusCrashcash || r.amount || r.crashcash)
+                             const key = `disc-${r.id || r.code || r.scratchedAt || Date.now()}`
+                             if ((isCash || hasBonusFromDiscount) && !r.synced && !seen.has(key)) {
+                                 seen.add(key)
+                                 candidates.push({ key, amount: r.amount || r.bonusCrashcash || r.crashcash || 0, source: r.source || 'scratch_card', ref: r })
+                             }
+                         })
+
+                         console.log('[CrashCash sync] candidates', candidates.length)
+
+                         for (const c of candidates) {
+                             if (!c.amount || c.amount <= 0) continue
+                             try {
+                                 const resp = await fetch('/api/crashcash/add', {
+                                     method: 'POST',
+                                     headers: {
+                                         'Content-Type': 'application/json',
+                                         ...(token ? { Authorization: `Bearer ${token}` } : {})
+                                     },
+                                     body: JSON.stringify({ amount: c.amount, source: c.source })
+                                 })
+                                 if (resp.ok) {
+                                     c.ref.synced = true
+                                     c.ref.syncedAt = new Date().toISOString()
+                                 } else {
+                                     const body = await resp.json().catch(() => ({}))
+                                     console.warn('[CrashCash sync] server rejected', resp.status, body?.message)
+                                 }
+                             } catch (syncErr) {
+                                 console.warn('Failed to sync local crashcash to server', syncErr)
+                             }
+                         }
+
+                         // Persist updated synced flags
+                         localStorage.setItem('scratchCardRewards', JSON.stringify(scratchRewards))
+                         localStorage.setItem('discountRewards', JSON.stringify(discountRewards))
+                     } catch (syncOuterErr) {
+                         console.warn('CrashCash sync skipped (parse error)', syncOuterErr)
+                     }
+                 }
+
+                 await syncLocalCrashcashToServer()
+
+                 // Prefer server data; fallback to local storage
+                 let cashOnly = []
+
+                 try {
+                     const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`)
+
+                     if (rewardsResp.ok) {
+                         const data = await rewardsResp.json()
+                         const active = data.activeRewards || []
+                         const expiredServer = data.expiredRewards || []
+
+                         const activeMapped = active.map(r => ({
+                             ...r,
+                             amount: r.amount || r.crashcash || 0,
+                             code: r.orderId || r.code || r.id || 'CRASHCASH',
+                             expiryDate: r.expiresAt,
+                             source: r.source,
+                             rewardType: 'crashcash',
+                             earnedAt: r.earnedAt || r.awardedAt || r.scratchedAt || null
+                         }))
+
+                         const expiredMapped = expiredServer.map(r => ({
+                             ...r,
+                             amount: r.amount || r.crashcash || 0,
+                             code: r.orderId || r.code || r.id || 'CRASHCASH',
+                             expiryDate: r.expiresAt || new Date(Date.now() - 86400000).toISOString(),
+                             source: r.source,
+                             rewardType: 'crashcash',
+                             earnedAt: r.earnedAt || r.awardedAt || r.scratchedAt || null
+                         }))
+
+                         // De-dup rewards by code+amount+earnedAt to avoid repeated scratches showing multiple times
+                         const deduped = []
+                         const seenKeys = new Set()
+                         ;[...activeMapped, ...expiredMapped].forEach(r => {
+                             const key = `${r.code || r.id}-${Number(r.amount || 0)}-${r.earnedAt || r.expiresAt}`
+                             if (!seenKeys.has(key)) {
+                                 seenKeys.add(key)
+                                 deduped.push(r)
+                             }
+                         })
+
+                         cashOnly = deduped
+
+                         const totalActive = activeMapped.reduce((sum, r) => sum + Number(r.amount || 0), 0)
+                         const totalExpired = expiredMapped.reduce((sum, r) => sum + Number(r.amount || 0), 0)
+
+                         setCrashCashList(cashOnly)
+                         setTotalCrashCash(totalActive)
+                         setExpiredCrashCash(totalExpired)
+                         console.log('💰 Crash-Cash page loaded balance (server source):', totalActive)
+                         return
+                     }
+                 } catch (err) {
+                     console.warn('Server crashcash fetch failed, using local fallback', err)
+                 }
+
+                 // Local fallback
+                 const balance = updateCrashCashBalance()
+                 const orderRewards = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
+                 const scratchRewards = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]').filter(r => r.type === 'reward')
+                 cashOnly = [
+                     ...orderRewards.map(r => ({
+                         ...r,
+                         amount: r.amount || 0,
+                         code: r.orderId || 'ORDER-REWARD',
+                         expiryDate: r.expiresAt,
+                         source: r.source || 'order_placed',
+                         rewardType: 'crashcash',
+                         earnedAt: r.awardedAt || r.earnedAt || null
+                     })),
+                     ...scratchRewards
+                         .filter(r => r.rewardType === 'crashcash' || !r.rewardType)
+                         .map(r => ({
+                             ...r,
+                             amount: r.crashcash || 0,
+                             code: r.code || 'SCRATCH-REWARD',
+                             expiryDate: r.expiresAt,
+                             source: 'scratch_card',
+                             rewardType: 'crashcash',
+                             earnedAt: r.scratchedAt || r.wonDate || r.earnedAt || null
+                         }))
+                 ]
+
+                 // Merge local discountRewards entries that are CrashCash (from scratch cards saved for rewards page)
+                 try {
+                     const discountRewards = JSON.parse(localStorage.getItem('discountRewards') || '[]')
+                     const crashcashFromDiscount = discountRewards
+                         .filter(r => r.rewardType === 'crashcash' || (!r.rewardType && !r.discount && (r.amount || r.bonusCrashcash || r.crashcash)))
+                         .map(r => ({
+                             id: r.id,
+                             code: r.code || r.id || 'CRASHCASH',
+                             amount: r.amount || r.bonusCrashcash || r.crashcash || 0,
+                             expiryDate: r.expiresAt || r.expiryDate,
+                             source: r.source || 'scratch_card',
+                             rewardType: 'crashcash',
+                             earnedAt: r.earnedAt || r.scratchedAt || r.wonDate || null
+                         }))
+
+                     crashcashFromDiscount.forEach(entry => {
+                         const exists = cashOnly.some(item => (item.id && entry.id && item.id === entry.id) || item.code === entry.code)
+                         if (!exists) cashOnly.push(entry)
+                     })
+                 } catch (mergeErr) {
+                     console.warn('Failed to merge discountRewards crashcash into crash-cash list', mergeErr)
+                 }
+
+                 // Recompute totals from merged list (authoritative for UI)
+                 const now = new Date()
+                 let totalActive = 0
+                 let totalExpired = 0
+                 cashOnly.forEach(item => {
+                     const amt = Number(item.amount || 0)
+                     if (item.expiryDate && new Date(item.expiryDate) < now) {
+                         totalExpired += amt
+                     } else {
+                         totalActive += amt
+                     }
+                 })
+
+                 setCrashCashList(cashOnly)
+                 setTotalCrashCash(balance || totalActive)
+                 setExpiredCrashCash(totalExpired)
+                 console.log('💰 Crash-Cash page loaded balance (local fallback):', totalActive)
+             } catch (e) {
+                 console.error('Error loading crash cash:', e)
+                 router.push('/login')
+             }
          }
+
+         load()
      }, [router])
+
+    // Load splash animation at runtime to avoid Turbopack HMR static import issues
+    useEffect(() => {
+        let mounted = true
+        fetch('/Cash_Counter_app_splash_icon.json')
+            .then((res) => {
+                if (!res.ok) throw new Error('Failed to load splash JSON')
+                return res.json()
+            })
+            .then((data) => {
+                if (mounted) setSplashAnim(data)
+            })
+            .catch((err) => console.debug('[CrashCashPage] splash load failed', err))
+        return () => { mounted = false }
+    }, [])
 
     const copyCode = (code) => {
         navigator.clipboard.writeText(code)
         setCopiedCode(code)
         toast.success('Code copied to clipboard!')
         setTimeout(() => setCopiedCode(null), 2000)
+    }
+
+    const formatEarnedDateTime = (raw) => {
+        if (!raw) return 'N/A'
+        const d = new Date(raw)
+        if (isNaN(d.getTime())) return 'N/A'
+        // 12-hour format with date and time
+        return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
     }
 
     const deleteCrashCash = (code) => {
@@ -145,18 +335,24 @@ export default function CrashCashPage() {
     }
 
     const isExpired = (expiryDate) => {
-        return new Date(expiryDate) < new Date()
+        // Treat missing/null/empty expiry as "no expiry" (never expires)
+        if (!expiryDate || expiryDate === 'null') return false
+
+        const d = new Date(expiryDate)
+        if (isNaN(d.getTime())) return false // invalid date => treat as no expiry
+
+        return d < new Date()
     }
 
     const getTimeRemaining = (expiryDate) => {
-        if (!expiryDate) return 'No expiry'
-        
+        if (!expiryDate || expiryDate === 'null') return 'No expiry'
+
         const today = new Date()
         const expiry = new Date(expiryDate)
-        
-        // Check if date is valid
-        if (isNaN(expiry.getTime())) return 'Invalid date'
-        
+
+        // Treat invalid dates as no expiry to avoid showing 'Expired'
+        if (isNaN(expiry.getTime())) return 'No expiry'
+
         const diffTime = expiry - today
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
@@ -198,8 +394,10 @@ export default function CrashCashPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 py-10">
-            <div className="max-w-6xl mx-auto px-4">
+        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 py-10 relative">
+
+            <FlyingBackground opacity={0.08} />
+            <div className="max-w-6xl mx-auto px-4 relative z-10">
                 {/* Header */}
                 <div className="text-center mb-10">
                     <div className="flex items-center justify-center gap-3 mb-2">
@@ -216,7 +414,7 @@ export default function CrashCashPage() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-2xl shadow-lg p-8 border-2 border-amber-200"
+                        className="relative rounded-2xl shadow-lg p-8 border-2 border-amber-200 bg-white/60 backdrop-blur-sm overflow-hidden"
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -224,15 +422,22 @@ export default function CrashCashPage() {
                                 <p className="text-4xl font-bold text-amber-600">₹{totalCrashCash}</p>
                                 <p className="text-xs text-slate-500 mt-2">{activeCrashCash.length} active rewards</p>
                             </div>
-                            <TrendingUp size={48} className="text-amber-400 opacity-30" />
+                            <div className="w-28 h-28 flex items-center justify-center">
+                                {splashAnim ? (
+                                    <LottieAnimation animationData={splashAnim} loop={true} autoplay={true} style={{ width: '140%', height: '140%' }} />
+                                ) : (
+                                    <TrendingUp size={48} className="text-amber-400 opacity-30" />
+                                )}
+                            </div>
                         </div>
+                        {/* page-level decorative overlay removed (background renders Flying money) */}
                     </motion.div>
 
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="bg-white rounded-2xl shadow-lg p-8 border-2 border-red-200"
+                        className="rounded-2xl shadow-lg p-8 border-2 border-red-200 bg-white/60 backdrop-blur-sm"
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -270,82 +475,92 @@ export default function CrashCashPage() {
                 </div>
 
                 {/* Crash Cash List */}
-                <div className="space-y-3">
-                    {displayList.map((item, index) => (
-                        <motion.div
-                            key={`${item.code}-${index}`}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.03 }}
-                            className={`bg-white rounded-xl shadow-sm border-l-4 transition-all p-4 ${
-                                isExpired(item.expiryDate)
-                                    ? 'border-l-gray-400 opacity-60'
-                                    : 'border-l-amber-500 hover:shadow-md'
-                            }`}
-                        >
-                            <div className="flex items-center justify-between gap-4">
-                                {/* Left: Amount */}
-                                <div className="flex items-center gap-3 flex-1">
-                                    <div className="flex-shrink-0">
-                                        <img src="/crashcash.ico" alt="Crash Cash" className="w-10 h-10" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="font-bold text-lg text-amber-600">₹{item.amount}</p>
-                                        <p className="text-xs text-slate-600">
-                                            {getTimeRemaining(item.expiryDate)}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Middle: Code */}
-                                <div className="flex-1 hidden sm:block">
-                                    <div className="bg-slate-50 rounded-lg p-2 font-mono text-sm font-bold text-slate-800 text-center">
-                                        {item.code}
-                                    </div>
-                                </div>
-
-                                {/* Right: Actions */}
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    <button
-                                        onClick={() => copyCode(item.code)}
-                                        className="p-2 hover:bg-slate-100 rounded-lg transition"
-                                        disabled={isExpired(item.expiryDate)}
-                                        title="Copy code"
-                                    >
-                                        {copiedCode === item.code ? (
-                                            <Check size={18} className="text-green-600" />
-                                        ) : (
-                                            <Copy size={18} className="text-slate-600" />
-                                        )}
-                                    </button>
-                                    {!isExpired(item.expiryDate) && (
-                                        <button
-                                            onClick={() => {
-                                                copyCode(item.code)
-                                                router.push('/shop')
-                                            }}
-                                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition"
+                            <div className="space-y-3">
+                                {displayList.map((item, index) => (
+                                    <motion.div
+                                        key={`${item.code}-${index}`}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: index * 0.03 }}
+                                        className={`rounded-xl shadow-sm border-l-4 transition-all p-4 bg-white/60 backdrop-blur-sm ${
+                                            isExpired(item.expiryDate)
+                                                ? 'border-l-gray-400 opacity-60'
+                                                : 'border-l-amber-500 hover:shadow-md'
+                                        }`} 
                                         >
-                                            Use
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => deleteCrashCash(item.code)}
-                                        className="p-2 hover:bg-red-100 rounded-lg transition text-red-600"
-                                        title="Delete"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                            </div>
+                                        <div className="flex items-center justify-between gap-4">
+                                            {/* Left: Amount */}
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <div className="flex-shrink-0">
+                                                    <img src="/crashcash.ico" alt="Crash Cash" className="w-10 h-10" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    {item.rewardType === 'discount' ? (
+                                                        <>
+                                                            <p className="font-bold text-lg text-purple-600">{item.discount}% OFF</p>
+                                                            <p className="text-xs text-slate-600">{getTimeRemaining(item.expiryDate)}</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="font-bold text-lg text-amber-600">₹{item.amount}</p>
+                                                            <p className="text-xs text-slate-600">{getTimeRemaining(item.expiryDate)}</p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                            {/* Mobile code display */}
-                            <div className="sm:hidden mt-2 bg-slate-50 rounded-lg p-2 font-mono text-xs font-bold text-slate-800 text-center">
-                                Code: {item.code}
+                                            {/* Middle: Code */}
+                                            <div className="flex-1 hidden sm:block">
+                                                <div className="bg-slate-50 rounded-lg p-2 font-mono text-sm font-bold text-slate-800 text-center">
+                                                    {item.code}
+                                                </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                Earned: {formatEarnedDateTime(item.earnedAt || item.scratchedAt || item.wonDate)}
+                                            </div>
+                                            </div>
+
+                                            {/* Right: Actions */}
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <button
+                                                    onClick={() => copyCode(item.code)}
+                                                    className="p-2 hover:bg-slate-100 rounded-lg transition"
+                                                    disabled={isExpired(item.expiryDate)}
+                                                    title="Copy code"
+                                                >
+                                                    {copiedCode === item.code ? (
+                                                        <Check size={18} className="text-green-600" />
+                                                    ) : (
+                                                        <Copy size={18} className="text-slate-600" />
+                                                    )}
+                                                </button>
+                                                {!isExpired(item.expiryDate) && (
+                                                    <button
+                                                        onClick={() => {
+                                                            copyCode(item.code)
+                                                            router.push('/shop')
+                                                        }}
+                                                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition"
+                                                    >
+                                                        Use
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => deleteCrashCash(item.code)}
+                                                    className="p-2 hover:bg-red-100 rounded-lg transition text-red-600"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Mobile code display */}
+                                        <div className="sm:hidden mt-2 bg-slate-50 rounded-lg p-2 font-mono text-xs font-bold text-slate-800 text-center">
+                                            Code: {item.code}
+                                        </div>
+                                    </motion.div>
+                                ))}
                             </div>
-                        </motion.div>
-                    ))}
-                </div>
 
                 {/* Empty State for Tab */}
                 {displayList.length === 0 && (
@@ -357,7 +572,7 @@ export default function CrashCashPage() {
                 )}
 
                 {/* Info Section */}
-                <div className="mt-12 bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 border border-slate-100 dark:border-slate-700">
+                <div className="mt-12 rounded-2xl shadow-lg p-8 border border-slate-100 dark:border-slate-700 bg-white/60 backdrop-blur-sm">
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">How Crash Cash Works</h2>
                     <div className="grid md:grid-cols-3 gap-6 mb-6">
                         <div className="text-center">

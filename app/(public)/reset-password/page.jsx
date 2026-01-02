@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { assets } from '@/assets/assets';
+import { passwordStrength, passwordIssues } from '@/lib/passwordPolicy';
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -20,6 +21,8 @@ function ResetPasswordForm() {
   const [error, setError] = useState('');
   const [tokenValid, setTokenValid] = useState(null);
   const [maskedEmail, setMaskedEmail] = useState('');
+  const [strength, setStrength] = useState(passwordStrength(''));
+  const [issues, setIssues] = useState(passwordIssues(''));
 
   // Verify token on mount
   useEffect(() => {
@@ -51,6 +54,15 @@ function ResetPasswordForm() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    const issueList = passwordIssues(password);
+    setIssues(issueList);
+
+    if (issueList.length > 0) {
+      setError('Password does not meet the required strength.');
+      setIsLoading(false);
+      return;
+    }
 
     // Validate passwords
     if (password !== confirmPassword) {
@@ -231,15 +243,34 @@ function ResetPasswordForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* New Password */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              New Password
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                New Password
+              </label>
+              <span
+                className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                  strength.score >= 4
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200'
+                    : strength.score === 3
+                      ? 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-200'
+                      : strength.score === 2
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200'
+                }`}
+              >
+                {strength.label || 'Too weak'}
+              </span>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 id="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setStrength(passwordStrength(e.target.value));
+                  setIssues(passwordIssues(e.target.value));
+                }}
                 placeholder="Enter new password"
                 required
                 minLength={8}
@@ -262,9 +293,32 @@ function ResetPasswordForm() {
                 )}
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Must be at least 8 characters
-            </p>
+            <div className="mt-3 space-y-2">
+              <div className="h-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${strength.score >= 4 ? 'bg-green-500' : strength.score === 3 ? 'bg-lime-500' : strength.score === 2 ? 'bg-amber-400' : 'bg-red-500'}`}
+                  style={{ width: `${strength.percent || 0}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Strength: {strength.label || 'Too weak'}</p>
+              <div className="grid grid-cols-2 gap-1 text-xs text-gray-600 dark:text-gray-300">
+                {[
+                  'At least 8 characters',
+                  'One uppercase letter',
+                  'One lowercase letter',
+                  'One number',
+                  'One special character',
+                ].map((item) => {
+                  const missing = issues.includes(item);
+                  return (
+                    <div key={item} className="flex items-center gap-1">
+                      <span className={`inline-block h-2 w-2 rounded-full ${missing ? 'bg-amber-400' : 'bg-green-500'}`}></span>
+                      <span>{item}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Confirm Password */}
@@ -302,7 +356,7 @@ function ResetPasswordForm() {
 
           <button
             type="submit"
-            disabled={isLoading || !password || !confirmPassword || password !== confirmPassword}
+            disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || issues.length > 0}
             className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2"
           >
             {isLoading ? (

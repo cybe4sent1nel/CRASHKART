@@ -8,6 +8,7 @@ import { ShoppingCart, Flame, Heart } from 'lucide-react'
 import Image from 'next/image'
 import { addToWishlist, removeFromWishlist } from '@/lib/features/wishlist/wishlistSlice'
 import { addToCart } from '@/lib/features/cart/cartSlice'
+import { CartOverrides } from '@/lib/cartOverrides'
 import LottieAnimation from './LottieAnimation'
 import wishlistAnimData from '@/public/animations/Wishlist Animation.json'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -95,9 +96,14 @@ const FlashSale = () => {
     const handleAddToCart = (product, e) => {
         e.preventDefault()
         e.stopPropagation()
-        dispatch(addToCart({
-            productId: product.id
-        }))
+        // Preserve flash sale / sale price for this product so it persists through checkout
+        const effectivePrice = product.salePrice || product.price || product.originalPrice
+        try {
+            CartOverrides.set(product.id, { salePrice: effectivePrice, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+        } catch (err) {
+            console.warn('Unable to persist cart override', err)
+        }
+        dispatch(addToCart({ productId: product.id }))
         toast.success(`${product.name} added to cart!`)
     }
 

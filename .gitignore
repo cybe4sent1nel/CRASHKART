@@ -120,3 +120,31 @@ pnpm-lock.yaml
 .env.local.example
 .local/
 local_*/
+
+# Vercel build output
+/.vercel
+/.vercel/output
+
+# Generated PDF invoices or temporary files
+/tmp/
+*.pdf
+
+# ==================== DOCUMENTATION ====================
+# Ignore all markdown files except README
+*.md
+!README.md
+
+# ==================== TEXT & PATCH FILES ====================
+*.txt
+*.patch
+*.diff
+
+# ==================== SEED & PATCH SCRIPTS ====================
+# Seed scripts
+/prisma/seed.js
+/scripts/seed*.js
+# Patch/fix scripts
+/scripts/fix-*.js
+/fix-*.js
+/fix-*.cjs
+/fix-*.ps1

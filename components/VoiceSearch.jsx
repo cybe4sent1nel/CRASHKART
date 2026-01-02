@@ -9,7 +9,10 @@ export default function VoiceSearch({ onSearch, placeholder = "Search products..
   const [searchText, setSearchText] = useState("");
   const [transcript, setTranscript] = useState("");
   const recognitionRef = useRef(null);
-  const [isSupported, setIsSupported] = useState(true);
+  const [isSupported] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  });
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -18,7 +21,6 @@ export default function VoiceSearch({ onSearch, placeholder = "Search products..
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!SpeechRecognition) {
-        setIsSupported(false);
         return;
       }
 

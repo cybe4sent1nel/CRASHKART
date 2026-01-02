@@ -3,7 +3,7 @@
 import { addToCart } from "@/lib/features/cart/cartSlice";
 import { StarIcon, TagIcon, EarthIcon, CreditCardIcon, UserIcon, MapPin, Calendar, Check, Package, AlertCircle, Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Counter from "./Counter";
 import { useDispatch, useSelector } from "react-redux";
@@ -13,6 +13,8 @@ import SellerStoreCard from "./SellerStoreCard";
 import OutOfStockDisplay from "./OutOfStockDisplay";
 import { toast } from "react-hot-toast";
 import CrashCashCard from "./CrashCashCard";
+import OffersStack from "./OffersStack";
+import FlashBuyNowButton from "./FlashBuyNowButton";
 
 const ProductDetails = ({ product, flashSaleData }) => {
 
@@ -35,6 +37,8 @@ const ProductDetails = ({ product, flashSaleData }) => {
     const [pincode, setPincode] = useState('');
     const [deliveryInfo, setDeliveryInfo] = useState(null);
     const [pincodeError, setPincodeError] = useState('');
+    const [chargesData, setChargesData] = useState({ global: { shippingFee: 40, freeAbove: 999, convenienceFee: 0, platformFee: 0 }, rules: [] })
+    const [productFees, setProductFees] = useState({ shippingFee: 0, convenienceFee: 0, platformFee: 0, freeAbove: 999 })
     const [notifyEmail, setNotifyEmail] = useState('');
     const [showNotifyModal, setShowNotifyModal] = useState(false);
     const [notifyLoading, setNotifyLoading] = useState(false);
@@ -143,6 +147,36 @@ const ProductDetails = ({ product, flashSaleData }) => {
         setGeocodingLoading(false);
     };
 
+    // Load admin charges and compute product-level fees
+    useEffect(() => {
+        const fetchCharges = async () => {
+            try {
+                const res = await fetch('/api/admin/charges')
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.success) {
+                        const admin = data.charges || data
+                        setChargesData(admin)
+                        // compute product-specific fees
+                        const pid = product.id
+                        const category = product.category || ''
+                        let rule = (admin.rules || []).find(r => r.scopeType === 'product' && String(r.scope) === String(pid))
+                        if (!rule && category) rule = (admin.rules || []).find(r => r.scopeType === 'category' && String(r.scope).toLowerCase() === String(category).toLowerCase())
+                        if (!rule) rule = (admin.rules || []).find(r => r.scopeType === 'all' || r.scope === '*')
+                        const shippingFee = Number(rule?.shippingFee ?? admin.global?.shippingFee ?? 0)
+                        const convenienceFee = Number(rule?.convenienceFee ?? admin.global?.convenienceFee ?? 0)
+                        const platformFee = Number(rule?.platformFee ?? admin.global?.platformFee ?? 0)
+                        const freeAbove = Number(admin.global?.freeAbove ?? 999)
+                        setProductFees({ shippingFee, convenienceFee, platformFee, freeAbove })
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load admin charges', e)
+            }
+        }
+        fetchCharges()
+    }, [product.id, product.category])
+
     const formatDeliveryDate = (date) => {
         return date.toLocaleDateString('en-IN', {
             weekday: 'short',
@@ -152,7 +186,16 @@ const ProductDetails = ({ product, flashSaleData }) => {
         });
     };
 
-    const addToCartHandler = () => {
+    const addToCartHandler = async () => {
+        try {
+            const mod = await import('@/lib/cartOverrides')
+            const CartOverrides = mod.CartOverrides || mod.default
+            const effectivePrice = product.salePrice || displayPrice || product.price
+            const flashId = product.flashSaleId || flashSaleData?.id || null
+            CartOverrides.set(productId, { salePrice: effectivePrice, flashSaleId: flashId, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+        } catch (err) {
+            // ignore
+        }
         dispatch(addToCart({ productId }))
         setShowAddedAnimation(true);
         setTimeout(() => {
@@ -303,6 +346,26 @@ const ProductDetails = ({ product, flashSaleData }) => {
                             </div>
                         )}
 
+                        {/* Product-level shipping info (from admin charges) */}
+                        <div className="mt-3">
+                            {productFees.shippingFee === 0 ? (
+                                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg text-sm">
+                                    <strong className="text-green-700">Free delivery</strong>
+                                    <div className="text-xs text-slate-600 dark:text-slate-400">Available for this product</div>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <div className="text-sm font-semibold">Estimated Shipping</div>
+                                            <div className="text-xs text-slate-600 dark:text-slate-400">Flat: ₹{Number(productFees.shippingFee || 0).toLocaleString()}</div>
+                                        </div>
+                                        <div className="text-xs text-slate-500">Free over ₹{Number(productFees.freeAbove || 999).toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {deliveryInfo && (
                             <div className="p-3 bg-white dark:bg-slate-800 border border-green-300 dark:border-green-700 rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
@@ -353,32 +416,7 @@ const ProductDetails = ({ product, flashSaleData }) => {
                                 <button onClick={() => !cart[productId] ? addToCartHandler() : router.push('/cart')} className="bg-slate-800 text-white px-10 py-3 text-sm font-medium rounded hover:bg-slate-900 active:scale-95 transition">
                                     {!cart[productId] ? 'Add to Cart' : 'View Cart'}
                                 </button>
-                                <button onClick={() => {
-                                     // For Buy Now: Save only this product to session storage
-                                     // Use sale price if available for flash sale items
-                                     const effectivePrice = product.salePrice || product.price || product.originalPrice
-                                     const buyNowData = {
-                                          isBuyNow: true,
-                                          product: {
-                                              id: product.id,
-                                              productId: product.id,
-                                              name: product.name,
-                                              price: effectivePrice,
-                                              salePrice: effectivePrice,
-                                              quantity: 1,
-                                              images: product.images,
-                                              originalPrice: product.originalPrice || product.price,
-                                              storeId: product.storeId || product.store_id || 'seller_1',
-                                              category: product.category,
-                                              description: product.description
-                                          }
-                                      };
-                                      sessionStorage.setItem('buyNowData', JSON.stringify(buyNowData));
-                                      // Redirect to dedicated buy-now-checkout route
-                                      router.push('/buy-now-checkout');
-                                  }} className="bg-red-600 text-white px-10 py-3 text-sm font-medium rounded hover:bg-red-700 active:scale-95 transition">
-                                      Buy Now
-                                  </button>
+                                <FlashBuyNowButton product={product} flashSaleDiscount={flashSaleDiscount} flashSaleData={flashSaleData} displayPrice={displayPrice} />
                             </>
                         ) : (
                             <button 
@@ -392,44 +430,13 @@ const ProductDetails = ({ product, flashSaleData }) => {
                     </div>
                 </div>
                 
-                {/* Crash Cash Reward Section */}
-                {product.crashCashValue && product.crashCashValue > 0 && (
-                    <>
-                    <hr className="border-gray-300 my-5" />
-                    <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 mb-6">
-                        <div className="flex items-center gap-2 mb-2">
-                            <img src="/crashcash.ico" alt="Crash Cash" className="w-6 h-6" />
-                            <h3 className="text-lg font-bold text-amber-900">Earn Crash Cash on this Purchase!</h3>
-                        </div>
-                        <p className="text-amber-900 font-semibold text-lg">Get up to {currency}{product.crashCashValue} Crash Cash</p>
-                        <p className="text-sm text-amber-800 mt-2">Use it as a discount code on your next purchase. Expires in 30 days from order date.</p>
-                    </div>
-                    </>
-                )}
+
                 
                 <hr className="border-gray-300 my-5" />
 
-                {/* Offers Section */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-3">Available Offers</h3>
-                    <ul className="flex flex-col gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <li className="flex items-start gap-2">
-                            <span className="text-green-600 font-bold">•</span>
-                            <span>Save {((product.mrp - product.price) / product.mrp * 100).toFixed(0)}% on this product</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="text-green-600 font-bold">•</span>
-                            <span>Free shipping on orders above {currency}500</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="text-green-600 font-bold">•</span>
-                            <span>Get instant cashback up to 5% with credit cards</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="text-green-600 font-bold">•</span>
-                            <span>Easy 30-day return policy</span>
-                        </li>
-                    </ul>
+                {/* Offers Section - NEW Animated Stack */}
+                <div className="mb-6">
+                    <OffersStack productId={product.id} productPrice={displayPrice} />
                 </div>
 
                 <div className="flex flex-col gap-4 text-slate-500 dark:text-slate-400">

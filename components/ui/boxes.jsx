@@ -17,9 +17,6 @@ export const BoxesCore = ({ className, ...rest }) => {
     "#a5b4fc",
     "#c4b5fd",
   ];
-  const getRandomColor = () => {
-    return colors[Math.floor(Math.random() * colors.length)];
-  };
 
   return (
     <div
@@ -40,7 +37,7 @@ export const BoxesCore = ({ className, ...rest }) => {
           {cols.map((_, j) => (
             <motion.div
               whileHover={{
-                backgroundColor: `${getRandomColor()}`,
+                backgroundColor: `${colors[(i * cols.length + j) % colors.length]}`,
                 transition: { duration: 0 },
               }}
               animate={{

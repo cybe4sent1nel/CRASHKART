@@ -8,6 +8,7 @@ import { ShoppingCart, Flame, Heart } from 'lucide-react'
 import Image from 'next/image'
 import { addToWishlist, removeFromWishlist } from '@/lib/features/wishlist/wishlistSlice'
 import { addToCart } from '@/lib/features/cart/cartSlice'
+import { CartOverrides } from '@/lib/cartOverrides'
 
 const FlashSaleSection = () => {
     const router = useRouter()
@@ -63,9 +64,9 @@ const FlashSaleSection = () => {
     const handleAddToCart = (product, e) => {
         e.preventDefault()
         e.stopPropagation()
-        dispatch(addToCart({
-            productId: product.id
-        }))
+        const effectivePrice = product.salePrice || product.price || product.originalPrice
+        try { CartOverrides.set(product.id, { salePrice: effectivePrice, expiresAt: localStorage.getItem('flashSaleEndTime') || null }) } catch (err) { console.warn('cart override failed', err) }
+        dispatch(addToCart({ productId: product.id }))
     }
 
     const handleBuyNow = (product, e) => {

@@ -1,16 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
-import jwt from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
 import { sendWelcomeEmail } from '@/lib/email';
+import { generateUserToken } from '@/lib/authTokens';
+import { createCrashCashReward } from '@/lib/rewards';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
     try {
         const { googleId, email, name, image } = await request.json();
+        const normalizedEmail = email?.toLowerCase();
 
-        if (!googleId || !email || !name) {
+        if (!googleId || !normalizedEmail || !name) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
@@ -22,18 +24,22 @@ export async function POST(request) {
             where: { googleId }
         });
 
+        let alreadyExists = false
+
         // If not, check by email
         if (!user) {
             user = await prisma.user.findUnique({
-                where: { email }
+                where: { email: normalizedEmail }
             });
 
             // If exists, update Google ID
             if (user) {
+                alreadyExists = true
                 user = await prisma.user.update({
                     where: { id: user.id },
                     data: {
                         googleId,
+                        email: normalizedEmail,
                         loginMethod: 'google',
                         image: image || user.image
                     },
@@ -43,10 +49,13 @@ export async function POST(request) {
                         email: true,
                         image: true,
                         isProfileSetup: true,
-                        loginMethod: true
+                        loginMethod: true,
+                        sessionVersion: true
                     }
                 });
             }
+        } else {
+            alreadyExists = true
         }
 
         // Create user if doesn't exist (new signup - give welcome bonus)
@@ -58,11 +67,11 @@ export async function POST(request) {
                 data: {
                     id,
                     name,
-                    email,
+                    email: normalizedEmail,
                     googleId,
                     image,
                     loginMethod: 'google',
-                    crashCashBalance: 100 // Welcome bonus of 100 CrashCash
+                    crashCashBalance: 0 // will be updated via reward credit
                 },
                 select: {
                     id: true,
@@ -71,14 +80,36 @@ export async function POST(request) {
                     image: true,
                     isProfileSetup: true,
                     loginMethod: true,
+                    sessionVersion: true,
                     crashCashBalance: true
                 }
             });
+
+            // Credit welcome CrashCash as an actual reward so balance queries reflect it
+            try {
+                await createCrashCashReward({ userId: user.id, amount: 1000, source: 'welcome_bonus' })
+                // Re-fetch to include updated balance
+                user = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                        isProfileSetup: true,
+                        loginMethod: true,
+                        sessionVersion: true,
+                        crashCashBalance: true
+                    }
+                })
+            } catch (rewardError) {
+                console.error('Failed to credit welcome CrashCash:', rewardError)
+            }
             
             // Send welcome email for new users
             try {
-                await sendWelcomeEmail(email, name, 100);
-                console.log('Welcome email sent to:', email);
+                await sendWelcomeEmail(normalizedEmail, name, 100);
+                console.log('Welcome email sent to:', normalizedEmail);
             } catch (emailError) {
                 console.error('Failed to send welcome email:', emailError);
                 // Continue even if email fails
@@ -94,27 +125,22 @@ export async function POST(request) {
                     image: true,
                     isProfileSetup: true,
                     loginMethod: true,
+                    sessionVersion: true,
                     crashCashBalance: true
                 }
             });
         }
 
         // Generate JWT token
-        const token = jwt.sign(
-            {
-                userId: user.id,
-                email: user.email,
-                loginMethod: 'google'
-            },
-            process.env.JWT_SECRET || 'your-secret-key',
-            { expiresIn: '30d' }
-        );
+        const token = generateUserToken(user, { loginMethod: 'google' })
 
         return NextResponse.json({
             success: true,
             user,
             token,
-            requiresProfileSetup: !user.isProfileSetup
+            requiresProfileSetup: !user.isProfileSetup,
+            alreadyExists,
+            message: alreadyExists ? 'Account already exists. Signed you in.' : 'Signup successful.'
         });
 
     } catch (error) {

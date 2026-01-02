@@ -75,7 +75,7 @@ export default function Wishlist({ userId }) {
     }
   };
 
-  const addToCart = (product) => {
+  const addToCart = async (product) => {
     // Get existing cart from localStorage
     const existingCart = JSON.parse(localStorage.getItem('cart') || '[]');
     
@@ -95,6 +95,16 @@ export default function Wishlist({ userId }) {
     }
     
     localStorage.setItem('cart', JSON.stringify(existingCart));
+    try {
+      // persist sale price override if available
+      const { CartOverrides } = await import('@/lib/cartOverrides')
+      if (product?.salePrice || product?.price) {
+        CartOverrides.set(product.id || product.productId, { salePrice: product.salePrice || product.price, expiresAt: localStorage.getItem('flashSaleEndTime') || null })
+      }
+    } catch (e) {
+      // dynamic import failure should not block
+      console.warn('Cart override dynamic import failed', e)
+    }
     window.dispatchEvent(new Event('cartUpdated'));
     toast.success('Added to cart');
   };

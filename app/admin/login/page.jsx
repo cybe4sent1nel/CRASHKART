@@ -5,8 +5,6 @@ import { Mail, Lock, Smartphone, Eye, EyeOff, Shield } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Swal from 'sweetalert2'
 
-const MAIN_ADMIN_EMAIL = 'crashkart.help@gmail.com'
-
 export default function AdminLogin() {
      const router = useRouter()
      const [step, setStep] = useState('email') // email, security-code, verification
@@ -22,69 +20,97 @@ export default function AdminLogin() {
      const [isLoggedIn, setIsLoggedIn] = useState(false)
      const [securityCodeSentOnce, setSecurityCodeSentOnce] = useState(false)
 
+     // Keep a cookie in sync so server/middleware can spot demo sessions
      useEffect(() => {
-          // Clear any previous 2FA verification when visiting login page
-          // This ensures admin must verify every time they want to access admin panel
-          localStorage.removeItem('admin2FAVerified')
-          sessionStorage.removeItem('admin2FAVerified')
-          localStorage.removeItem('adminAuthenticated')
-          sessionStorage.removeItem('adminAuthenticated')
-          
-          // Mark that we're processing admin login to prevent race conditions
-          sessionStorage.setItem('adminLoginProcessing', 'true')
-
-          // Load email from user profile if available (regular login or Google login)
-          let userEmail = null
-          
-          // Check regular user data
-          const userData = localStorage.getItem('user')
-          if (userData) {
-              try {
-                  const user = JSON.parse(userData)
-                  if (user.email) {
-                      userEmail = user.email
-                  }
-              } catch (err) {
-                  console.error('Error loading user profile:', err)
-              }
-          }
-          
-          // Check Google user data if regular login not found
-          if (!userEmail) {
-              const googleData = localStorage.getItem('googleUser')
-              if (googleData) {
-                  try {
-                      const googleUser = JSON.parse(googleData)
-                      if (googleUser.email) {
-                          userEmail = googleUser.email
-                      }
-                  } catch (err) {
-                      console.error('Error loading Google profile:', err)
-                  }
-              }
-          }
-          
-          // If user email found AND they're the main admin, show security verification
-          if (userEmail && userEmail === MAIN_ADMIN_EMAIL) {
-              setProfileEmail(userEmail)
-              setEmail(userEmail)
-              setIsLoggedIn(true)
-              setStep('security-code')
-              // Auto-send security code for main admin (only once)
-              if (!securityCodeSentOnce) {
-                  sendSecurityCodeToLoggedInUser(userEmail)
-                  setSecurityCodeSentOnce(true)
-              }
-          } else if (userEmail) {
-              // Regular user logged in but trying to access admin - show request form
-              setProfileEmail(userEmail)
-              setEmail(userEmail)
-              setIsLoggedIn(false)
-              setStep('email')
+          if (typeof document === 'undefined') return
+          if (demoMode) {
+              document.cookie = 'admin_demo=1; path=/; max-age=86400'
           } else {
-              // No user logged in - show request form
-              setStep('email')
+              document.cookie = 'admin_demo=; path=/; max-age=0'
           }
+     }, [demoMode])
+
+     useEffect(() => {
+          const initializeAdminCheck = async () => {
+               // Clear any previous 2FA verification when visiting login page
+               // This ensures admin must verify every time they want to access admin panel
+               localStorage.removeItem('admin2FAVerified')
+               sessionStorage.removeItem('admin2FAVerified')
+               localStorage.removeItem('adminAuthenticated')
+               sessionStorage.removeItem('adminAuthenticated')
+               
+               // Mark that we're processing admin login to prevent race conditions
+               sessionStorage.setItem('adminLoginProcessing', 'true')
+
+               // Load email from user profile if available (regular login or Google login)
+               let userEmail = null
+               
+               // Check regular user data
+               const userData = localStorage.getItem('user')
+               if (userData) {
+                    try {
+                         const user = JSON.parse(userData)
+                         if (user.email) {
+                              userEmail = user.email
+                         }
+                    } catch (err) {
+                         console.error('Error loading user profile:', err)
+                    }
+               }
+               
+               // Check Google user data if regular login not found
+               if (!userEmail) {
+                    const googleData = localStorage.getItem('googleUser')
+                    if (googleData) {
+                         try {
+                              const googleUser = JSON.parse(googleData)
+                              if (googleUser.email) {
+                                   userEmail = googleUser.email
+                              }
+                         } catch (err) {
+                              console.error('Error loading Google profile:', err)
+                         }
+                    }
+               }
+               
+               // Check if user email is an admin in database
+               if (userEmail) {
+                    try {
+                         const checkRes = await fetch('/api/admin/check', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ email: userEmail })
+                         })
+                         const checkData = await checkRes.json()
+                         
+                         if (checkData.isAdmin) {
+                              // User is admin, show security verification
+                              setProfileEmail(userEmail)
+                              setEmail(userEmail)
+                              setIsLoggedIn(true)
+                              setStep('security-code')
+                              // Auto-send security code (only once)
+                              if (!securityCodeSentOnce) {
+                                   sendSecurityCodeToLoggedInUser(userEmail)
+                                   setSecurityCodeSentOnce(true)
+                              }
+                         } else if (userEmail) {
+                              // Regular user logged in but not an admin - show request form
+                              setProfileEmail(userEmail)
+                              setEmail(userEmail)
+                              setIsLoggedIn(false)
+                         }
+                    } catch (err) {
+                         console.error('Error checking admin status:', err)
+                    }
+                    setStep('email')
+               } else {
+                    // No user logged in - show request form
+                    setStep('email')
+               }
+          }
+          
+          initializeAdminCheck()
 
           // Cleanup flag
           return () => {
@@ -192,24 +218,32 @@ export default function AdminLogin() {
                     router.push('/admin')
                 }, 500)
             } else {
-                 // Check if this is the main admin email
-                 if (email === MAIN_ADMIN_EMAIL) {
-                     // Main admin - require security code verification
-                     setEmail(email)
-                     
-                     // Send security code
-                     try {
-                         const response = await fetch('/api/admin/send-security-code', {
-                             method: 'POST',
-                             headers: { 'Content-Type': 'application/json' },
-                             body: JSON.stringify({ email })
-                         })
-                         
-                         const data = await response.json()
-                         
-                         if (response.ok) {
-                             setCodeSent(true)
-                             setStep('security-code')
+                // Check if this email is an admin in database
+                try {
+                    const checkRes = await fetch('/api/admin/check', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    })
+                    const checkData = await checkRes.json()
+                    
+                    if (checkData.isAdmin) {
+                        // Admin email - require security code verification
+                        setEmail(email)
+                        
+                        // Send security code
+                        try {
+                            const response = await fetch('/api/admin/send-security-code', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email })
+                            })
+                            
+                            const data = await response.json()
+                            
+                            if (response.ok) {
+                                setCodeSent(true)
+                                setStep('security-code')
                              toast.success('Security code sent to your email!')
                          } else {
                              toast.error(data.message || 'Failed to send security code')
@@ -235,7 +269,7 @@ export default function AdminLogin() {
                         // Show confirmation message
                         Swal.fire({
                             title: 'Access Request Sent',
-                            html: `<p>Your admin access request has been sent to ${MAIN_ADMIN_EMAIL}</p>
+                            html: `<p>Your admin access request has been sent to the admin team</p>
                                    <p style="margin-top: 15px; color: #666; font-size: 14px;">Please wait for approval. An email will be sent to you once approved.</p>`,
                             icon: 'info',
                             confirmButtonColor: '#ef4444',
@@ -250,6 +284,10 @@ export default function AdminLogin() {
                     } else {
                         toast.error(data.message || 'Failed to send request')
                     }
+                }
+                } catch (error) {
+                    console.error('Error checking admin:', error)
+                    toast.error('Failed to verify admin status')
                 }
             }
         } catch (error) {
@@ -525,7 +563,7 @@ export default function AdminLogin() {
 
                             <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
                                 <p className="text-xs text-green-800">
-                                    <strong>How it works:</strong> Your request will be sent to the main admin ({MAIN_ADMIN_EMAIL}). Once approved, you'll receive an email with access credentials.
+                                    <strong>How it works:</strong> Your request will be sent to the admin team. Once approved, you'll receive an email with access credentials.
                                 </p>
                             </div>
                         </>

@@ -1,7 +1,9 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { verifyUserToken } from '@/lib/authTokens'
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 // Helper function to format phone number for Cashfree
 // Cashfree accepts: Indian +919090407368, 9090407368, International +16014635923
@@ -60,6 +62,7 @@ const sanitizeUrl = (url) => {
 
 export async function POST(req) {
     try {
+        const { authOptions } = await import('@/lib/auth')
         // Debug logging
         const authHeader = req.headers.get('authorization')
         console.log('🔍 Payment Auth Debug:')
@@ -67,37 +70,67 @@ export async function POST(req) {
         console.log('  JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not Set')
         
         // Get user session from NextAuth or Bearer token
-         let session = await getServerSession(authOptions)
-         let userEmail = session?.user?.email
-         let userId = null
-         console.log('  NextAuth Session:', userEmail ? `Found: ${userEmail}` : 'Not found')
-         
-         // If no NextAuth session, check for Bearer token (localStorage OTP login)
-         if (!userEmail && authHeader?.startsWith('Bearer ')) {
-             const token = authHeader.slice(7)
-             console.log('  Token Length:', token.length)
-             try {
-                 // Verify JWT token
-                 const decoded = jwt.verify(
-                     token,
-                     process.env.JWT_SECRET || 'your-secret-key'
-                 )
-                 userEmail = decoded?.email
-                 userId = decoded?.userId
-                 console.log('  ✅ JWT Verified:', { email: userEmail, userId })
-             } catch (err) {
-                 console.error('  ❌ JWT verification failed:', err.message)
-             }
-         }
-         
-         if (!userEmail && !userId) {
-             console.log('  ⛔ No user email or userId found - returning 401')
-             return Response.json(
-                 { message: 'Unauthorized' },
-                 { status: 401 }
-             )
-         }
-         console.log('  ✅ User authenticated:', { userEmail, userId })
+        let session = await getServerSession(authOptions)
+        let user = null
+        let userEmail = session?.user?.email || null
+        console.log('  NextAuth Session:', userEmail ? `Found: ${userEmail}` : 'Not found')
+
+        if (userEmail) {
+            user = await prisma.user.findUnique({ where: { email: userEmail } })
+            if (user) {
+                console.log('✅ User found by email:', user.email)
+            }
+        }
+
+        // If no NextAuth session, check for Bearer token (localStorage OTP login)
+        if (!user && authHeader?.startsWith('Bearer ')) {
+            const token = authHeader.slice(7)
+            console.log('  Token Length:', token.length)
+            try {
+                        const { authOptions } = await import('@/lib/auth')
+const verified = await verifyUserToken(token)
+                user = await prisma.user.findUnique({ where: { id: verified.user.id } }) || verified.user
+                userEmail = user.email
+                console.log('  ✅ JWT Verified via helper:', { email: userEmail, userId: user.id })
+            } catch (err) {
+                console.error('  ❌ JWT verification failed:', err.message)
+            }
+        }
+        
+        if (!user) {
+            console.log('  ⛔ No user email or userId found - returning 401')
+            return Response.json(
+                { message: 'Unauthorized' },
+                { status: 401 }
+            )
+        }
+        const userId = user.id
+        console.log('  ✅ User authenticated:', { userEmail: user.email, userId })
+
+        console.log('✅ User authenticated and found in database:', user.email || user.id)
+
+        // Load Cashfree credentials early for duplicate detection handling
+        const appId = process.env.CASHFREE_APP_ID
+        const secretKey = process.env.CASHFREE_SECRET_KEY
+        // Default to sandbox if CASHFREE_API_URL not set
+        const baseUrl = process.env.CASHFREE_API_URL || 'https://sandbox.cashfree.com'
+
+        if (!appId || !secretKey) {
+            console.error('❌ Missing Cashfree credentials')
+            return Response.json(
+                { message: 'Payment gateway configuration error' },
+                { status: 500 }
+            )
+        }
+
+        console.log('🔐 Checking Cashfree Credentials:')
+        console.log('  App ID present:', !!appId)
+        console.log('  App ID (first 10 chars):', appId?.slice(0, 10))
+        console.log('  Secret Key present:', !!secretKey)
+        console.log('  Secret Key (first 10 chars):', secretKey?.slice(0, 10))
+        console.log('💳 Cashfree Configuration:')
+        console.log('  Environment:', baseUrl.includes('sandbox') ? 'SANDBOX (Testing Mode)' : 'PRODUCTION')
+        console.log('  Base URL:', baseUrl)
 
         const body = await req.json()
         const {
@@ -107,10 +140,142 @@ export async function POST(req) {
             items,
             selectedAddressId,
             mobileNumber,
-            appliedCoupon
+            appliedCoupon,
+            retryPayment,
+            orderId
         } = body
 
-        // Validate required fields
+        // Handle retry payment for existing order
+        if (retryPayment && orderId) {
+            console.log('🔄 Retry payment requested for order:', orderId)
+            
+            // Fetch existing order
+            const existingOrder = await prisma.order.findUnique({
+                where: { id: orderId },
+                include: {
+                    user: true,
+                    address: true,
+                    orderItems: {
+                        include: {
+                            product: true
+                        }
+                    }
+                }
+            })
+            
+            if (!existingOrder) {
+                return Response.json(
+                    { message: 'Order not found' },
+                    { status: 404 }
+                )
+            }
+            
+            // Verify user owns this order
+            if (existingOrder.userId !== user.id) {
+                return Response.json(
+                    { message: 'Unauthorized to retry payment for this order' },
+                    { status: 403 }
+                )
+            }
+            
+            // Create Cashfree order for retry payment
+            const cashfreeAppId = process.env.CASHFREE_APP_ID
+            const cashfreeSecretKey = process.env.CASHFREE_SECRET_KEY
+            const baseUrl = 'https://sandbox.cashfree.com'
+            
+            if (!cashfreeAppId || !cashfreeSecretKey) {
+                return Response.json(
+                    { message: 'Payment gateway not configured' },
+                    { status: 500 }
+                )
+            }
+            
+            const cashfreeOrderId = `RETRY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+            const notifyUrl = sanitizeUrl(`${baseAppUrl}/api/payments/cashfree-webhook`)
+            // Redirect users to a dedicated payment-received page after successful payment
+            const returnUrl = sanitizeUrl(`${baseAppUrl}/payment-received/${existingOrder.id}`)
+            
+            const orderPayload = {
+                order_id: cashfreeOrderId,
+                order_amount: Math.round(existingOrder.total * 100) / 100,
+                order_currency: 'INR',
+                customer_details: {
+                    customer_id: existingOrder.user.id,
+                    customer_phone: formatPhoneNumber(existingOrder.address.phone),
+                    customer_email: existingOrder.user.email || userEmail
+                },
+                order_meta: {
+                    notify_url: notifyUrl,
+                    return_url: returnUrl
+                },
+                order_note: `CrashKart Order Retry - ${existingOrder.orderItems.length} items`
+            }
+            
+            console.log('🚀 Creating Cashfree order for retry:', cashfreeOrderId)
+            
+            const createOrderResponse = await fetch(
+                `${baseUrl}/pg/orders`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-version': '2023-08-01',
+                        'x-client-id': cashfreeAppId,
+                        'x-client-secret': cashfreeSecretKey
+                    },
+                    body: JSON.stringify(orderPayload)
+                }
+            )
+            
+            // Safely parse response: Cashfree may return HTML on errors (auth pages, proxy pages)
+            const rawText = await createOrderResponse.text()
+            let orderResult
+            try {
+                        const { authOptions } = await import('@/lib/auth')
+orderResult = JSON.parse(rawText)
+            } catch (jsonErr) {
+                console.error('❌ Cashfree retry payment returned non-JSON response')
+                console.error('  Status:', createOrderResponse.status)
+                console.error('  Content-Type:', createOrderResponse.headers.get('content-type'))
+                console.error('  Body (truncated):', rawText?.slice(0, 200))
+                return Response.json(
+                    { message: 'Payment gateway returned unexpected response (non-JSON). Check Cashfree sandbox availability and credentials.', technicalDetails: rawText?.slice(0, 1000) },
+                    { status: 502 }
+                )
+            }
+
+            if (!createOrderResponse.ok) {
+                console.error('❌ Cashfree retry payment error:', orderResult)
+                return Response.json(
+                    { message: orderResult.message || 'Failed to create retry payment' },
+                    { status: 400 }
+                )
+            }
+            
+            // Update order with new Cashfree details
+            await prisma.order.update({
+                where: { id: existingOrder.id },
+                data: {
+                    notes: JSON.stringify({
+                        cashfreeOrderId: cashfreeOrderId,
+                        paymentSessionId: orderResult.payment_session_id,
+                        retryAt: new Date().toISOString()
+                    })
+                }
+            })
+            
+            console.log('✅ Retry payment session created')
+            
+            return Response.json({
+                success: true,
+                orderId: existingOrder.id,
+                paymentSessionId: orderResult.payment_session_id.trim(),
+                message: 'Retry payment session created'
+            }, { status: 200 })
+        }
+
+        // Validate required fields for new orders
         if (!items || items.length === 0) {
             return Response.json(
                 { message: 'No items in order' },
@@ -125,84 +290,7 @@ export async function POST(req) {
             )
         }
 
-        // Get Cashfree credentials from environment
-        const cashfreeAppId = process.env.CASHFREE_APP_ID
-        const cashfreeSecretKey = process.env.CASHFREE_SECRET_KEY
-        // ALWAYS use sandbox for testing - change to 'production' only when going live
-        const cashfreeEnvironment = 'sandbox'
-
-        console.log('🔐 Checking Cashfree Credentials:')
-        console.log('  App ID present:', !!cashfreeAppId)
-        console.log('  App ID (first 10 chars):', cashfreeAppId?.substring(0, 10))
-        console.log('  Secret Key present:', !!cashfreeSecretKey)
-        console.log('  Secret Key (first 10 chars):', cashfreeSecretKey?.substring(0, 10))
-
-        if (!cashfreeAppId || !cashfreeSecretKey) {
-            console.error('❌ Cashfree credentials not configured!')
-            console.error('Please set CASHFREE_APP_ID and CASHFREE_SECRET_KEY in your .env file')
-            return Response.json(
-                { message: 'Payment gateway not configured. Please contact support.' },
-                { status: 500 }
-            )
-        }
-
-        // Base URL for Cashfree API - forced to sandbox for testing
-        const baseUrl = 'https://sandbox.cashfree.com'
-        
-        console.log('💳 Cashfree Configuration:')
-        console.log('  Environment: SANDBOX (Testing Mode)')
-        console.log('  Base URL:', baseUrl)
-
-        // Get user from database - try userId first, then email
-         let user = null
-         
-         if (userId) {
-             console.log('🔍 Looking for user by userId:', userId)
-             user = await prisma.user.findUnique({
-                 where: { id: userId }
-             })
-             if (user) {
-                 console.log('✅ User found by userId:', user.email || user.id)
-             }
-         }
-         
-         if (!user && userEmail) {
-             console.log('🔍 Looking for user by email:', userEmail)
-             user = await prisma.user.findUnique({
-                 where: { email: userEmail }
-             })
-             if (user) {
-                 console.log('✅ User found by email:', user.email)
-             }
-         }
-
-         if (!user) {
-             console.warn('⚠️ User not found in database, attempting to create user', { userId, userEmail })
-             
-             try {
-                 // Auto-create user if they don't exist (fallback for OTP auth issues)
-                 user = await prisma.user.create({
-                     data: {
-                         id: userId || 'user_' + Date.now(),
-                         email: userEmail || null,
-                         name: userEmail ? userEmail.split('@')[0] : 'User',
-                         isProfileSetup: false,
-                         loginMethod: 'email'
-                     }
-                 })
-                 console.log('✅ User auto-created:', user.id, user.email)
-             } catch (createErr) {
-                 console.error('❌ Failed to auto-create user:', createErr.message)
-                 // Try to find any user to help with debugging
-                 const allUsers = await prisma.user.findMany({ take: 5 })
-                 console.log('Debug - Sample users in DB:', allUsers.map(u => ({ id: u.id, email: u.email })))
-                 return Response.json(
-                     { message: 'User not found and could not be created', debug: { userId, userEmail, error: createErr.message } },
-                     { status: 404 }
-                 )
-             }
-         }
-         console.log('✅ User authenticated and found in database:', user.email || user.id)
+        // Credentials already loaded at top of function
 
         // Validate and resolve addressId
         let addressId = selectedAddressId
@@ -218,7 +306,8 @@ export async function POST(req) {
                 addressId = userAddresses[0].id
             } else {
                 try {
-                    const defaultAddress = await prisma.address.create({
+                            const { authOptions } = await import('@/lib/auth')
+const defaultAddress = await prisma.address.create({
                         data: {
                             userId: user.id,
                             name: user.name || 'User',
@@ -268,7 +357,8 @@ export async function POST(req) {
                     storeId = firstStore.id
                 } else {
                     try {
-                        const defaultStore = await prisma.store.create({
+                                const { authOptions } = await import('@/lib/auth')
+const defaultStore = await prisma.store.create({
                             data: {
                                 userId: user.id,
                                 name: 'Default Store',
@@ -323,6 +413,130 @@ export async function POST(req) {
         
         const validItems = resolvedItems.filter(item => item !== null)
         
+        // Check for duplicate orders before creating new one
+        try {
+                    const { authOptions } = await import('@/lib/auth')
+const normalizedTotal = Number(Number(total).toFixed(2))
+            const dedupeStatuses = ['ORDER_PLACED', 'PAYMENT_PENDING', 'PROCESSING']
+            const totalLower = normalizedTotal - 1
+            const totalUpper = normalizedTotal + 1
+            console.log(`🔍 [Cashfree] Checking for duplicate orders: total=₹${normalizedTotal} (range: ₹${totalLower}-₹${totalUpper}), items=${validItems.length}`)
+            
+            const dedupeCandidates = await prisma.order.findMany({
+                where: {
+                    userId: user.id,
+                    isPaid: false,
+                    status: { in: dedupeStatuses },
+                    total: { gte: totalLower, lte: totalUpper },
+                    createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+                },
+                include: { orderItems: true }
+            })
+            
+            console.log(`📋 [Cashfree] Found ${dedupeCandidates.length} potential duplicate candidates`)
+            
+            if (dedupeCandidates.length > 0) {
+                const sameItems = (existing) => {
+                    if (!existing?.orderItems || existing.orderItems.length !== validItems.length) return false
+                    const normalize = (arr) => [...arr]
+                        .map(i => ({
+                            pid: String(i.productId),
+                            qty: Number(i.quantity || 0),
+                            price: Number(i.price || 0)
+                        }))
+                        .sort((a, b) => a.pid.localeCompare(b.pid))
+                    const a = normalize(existing.orderItems)
+                    const b = normalize(validItems)
+                    // Allow ±₹1 tolerance per item price to account for rounding/fee differences
+                    const itemsMatch = a.every((itm, idx) => {
+                        const other = b[idx]
+                        if (!other) return false
+                        return itm.pid === other.pid && itm.qty === other.qty && Math.abs(itm.price - other.price) <= 1
+                    })
+                    if (!itemsMatch) return false
+                    const existingTotal = Number(Number(existing.total || 0).toFixed(2))
+                    const totalDiff = Math.abs(existingTotal - normalizedTotal)
+                    return totalDiff <= 1
+                }
+                
+                const duplicate = dedupeCandidates.find(sameItems)
+                if (duplicate) {
+                    console.log(`♻️ [Cashfree] Found duplicate order ${duplicate.id} - updating to CASHFREE/PAYMENT_PENDING`)
+                    
+                    // Update existing order to use Cashfree payment method
+                    await prisma.order.update({
+                        where: { id: duplicate.id },
+                        data: {
+                            paymentMethod: 'CASHFREE',
+                            status: 'PAYMENT_PENDING',
+                            total: normalizedTotal,
+                            notes: JSON.stringify({
+                                switchedToCashfree: true,
+                                switchedAt: new Date().toISOString()
+                            })
+                        }
+                    })
+                    
+                    // Use the existing order instead of creating new one
+                    console.log(`✅ [Cashfree] Reusing existing order ${duplicate.id}`)
+                    const dbOrder = duplicate
+                    
+                    // Continue with Cashfree payment session creation using the existing order...
+                    const cashfreeOrderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                    const formattedPhone = formatPhoneNumber(mobileNumber)
+                    const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+                    const notifyUrl = sanitizeUrl(`${baseAppUrl}/api/payments/cashfree-webhook`)
+                    const returnUrl = sanitizeUrl(`${baseAppUrl}/order-success/${dbOrder.id}`)
+                    
+                    const orderPayload = {
+                        order_id: cashfreeOrderId,
+                        order_amount: Math.round(total * 100) / 100,
+                        order_currency: 'INR',
+                        customer_details: {
+                            customer_id: user.id,
+                            customer_phone: formattedPhone || '',
+                            customer_email: userEmail
+                        },
+                        order_meta: {
+                            notify_url: notifyUrl,
+                            return_url: returnUrl
+                        },
+                        order_note: `CrashKart Order - ${items.length} items`
+                    }
+                    
+                    // Make Cashfree API call (credentials loaded at top)
+                    const cashfreeResponse = await fetch(`${baseUrl}/pg/orders`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-client-id': appId,
+                            'x-client-secret': secretKey,
+                            'x-api-version': '2023-08-01'
+                        },
+                        body: JSON.stringify(orderPayload)
+                    })
+                    
+                    const cashfreeData = await cashfreeResponse.json()
+                    
+                    if (!cashfreeResponse.ok) {
+                        throw new Error(cashfreeData.message || 'Cashfree order creation failed')
+                    }
+                    
+                    return Response.json({
+                        orderId: dbOrder.id,
+                        cashfreeOrderId: cashfreeData.order_id,
+                        paymentSessionId: cashfreeData.payment_session_id,
+                        total: dbOrder.total
+                    }, { status: 200 })
+                }
+            }
+            
+            console.log('✨ [Cashfree] No duplicate found - creating new order')
+        } catch (dupErr) {
+            console.error('⚠️ [Cashfree] Duplicate check failed:', dupErr.message)
+            // Continue to create new order if duplicate check fails
+        }
+        
         // Build order data
         // Note: Order is created with isPaid: false initially
         // After successful payment webhook, it will be marked as paid
@@ -333,7 +547,7 @@ export async function POST(req) {
             total: total,
             isPaid: false, // Will be updated to true after payment success
             paymentMethod: 'CASHFREE',
-            status: 'ORDER_PLACED', // Start with ORDER_PLACED, update on payment success
+            status: 'PAYMENT_PENDING', // Cashfree orders start as PAYMENT_PENDING until webhook confirms
             isCouponUsed: !!appliedCoupon,
             coupon: appliedCoupon ? JSON.stringify(appliedCoupon) : null
         }
@@ -366,6 +580,7 @@ export async function POST(req) {
         // Generate and sanitize URLs
         const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
         const notifyUrl = sanitizeUrl(`${baseAppUrl}/api/payments/cashfree-webhook`)
+        // For new orders initiated from checkout, redirect to the order success page
         const returnUrl = sanitizeUrl(`${baseAppUrl}/order-success/${dbOrder.id}`)
         
         console.log('🔗 URL Sanitization:')
@@ -398,7 +613,8 @@ export async function POST(req) {
         
         for (let i = 0; i <= retries; i++) {
             try {
-                console.log(`🔄 Attempt ${i + 1}/${retries + 1}`)
+                        const { authOptions } = await import('@/lib/auth')
+console.log(`🔄 Attempt ${i + 1}/${retries + 1}`)
                 
                 const controller = new AbortController()
                 const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -410,8 +626,8 @@ export async function POST(req) {
                         headers: {
                             'Content-Type': 'application/json',
                             'x-api-version': '2023-08-01',
-                            'x-client-id': cashfreeAppId,
-                            'x-client-secret': cashfreeSecretKey
+                            'x-client-id': appId,
+                            'x-client-secret': secretKey
                         },
                         body: JSON.stringify(orderPayload),
                         signal: controller.signal
@@ -450,7 +666,22 @@ export async function POST(req) {
             }
         }
 
-        const orderResult = await createOrderResponse.json()
+        // Safely parse response: Cashfree may return HTML on errors (auth pages, proxy pages)
+        const rawText = await createOrderResponse.text()
+        let orderResult
+        try {
+                    const { authOptions } = await import('@/lib/auth')
+orderResult = JSON.parse(rawText)
+        } catch (jsonErr) {
+            console.error('❌ Cashfree returned non-JSON response')
+            console.error('  Status:', createOrderResponse.status)
+            console.error('  Content-Type:', createOrderResponse.headers.get('content-type'))
+            console.error('  Body (truncated):', rawText?.slice(0, 500))
+            return Response.json(
+                { message: 'Payment gateway returned unexpected response (non-JSON). Check Cashfree sandbox availability and credentials.', technicalDetails: rawText?.slice(0, 1000) },
+                { status: 502 }
+            )
+        }
 
         console.log('📥 Raw Cashfree Response:')
         console.log('  Order ID:', orderResult.order_id)

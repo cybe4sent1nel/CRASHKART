@@ -1,10 +1,13 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { verifyUserToken } from '@/lib/authTokens'
+
+// Prevent Next.js from attempting to pre-render this route
+export const dynamic = 'force-dynamic'
 
 export async function GET(req) {
     try {
+        const { authOptions } = await import('@/lib/auth')
         // Get user session
         const authHeader = req.headers.get('authorization')
         let session = await getServerSession(authOptions)
@@ -12,25 +15,28 @@ export async function GET(req) {
         let userId = null
 
         // Check Bearer token if no NextAuth session
-        if (!userEmail && authHeader?.startsWith('Bearer ')) {
-            const token = authHeader.slice(7)
+        let user = null
+
+        if (userEmail) {
+            user = await prisma.user.findUnique({ where: { email: userEmail } })
+            userId = user?.id
+        }
+
+        if (!user && authHeader?.startsWith('Bearer ')) {
             try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
-                userEmail = decoded?.email
-                userId = decoded?.userId
+                const token = authHeader.slice(7)
+                const verified = await verifyUserToken(token)
+                user = verified.user
+                userId = user.id
+                userEmail = user.email
             } catch (err) {
                 console.error('JWT verification failed:', err.message)
             }
         }
 
-        if (!userEmail && !userId) {
+        if (!user) {
             return Response.json({ message: 'Unauthorized' }, { status: 401 })
         }
-
-        // Find user
-        const user = await prisma.user.findUnique({
-            where: userId ? { id: userId } : { email: userEmail }
-        })
 
         if (!user) {
             return Response.json({ message: 'User not found' }, { status: 404 })

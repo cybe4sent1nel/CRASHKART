@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from "next/navigation"
-import { HomeIcon, ShieldCheckIcon, StoreIcon, TicketPercentIcon, Users, MessageCircle, Package, AlertCircle, TrendingUp, Mail, Phone, MapPin, ChevronDown, Search, X, Flame, Coins } from "lucide-react"
+import { HomeIcon, ShieldCheckIcon, StoreIcon, TicketPercentIcon, Users, MessageCircle, Package, AlertCircle, TrendingUp, Mail, Phone, MapPin, ChevronDown, Search, X, Flame, Coins, CreditCard } from "lucide-react"
 import Link from "next/link"
 import { assets } from "@/assets/assets"
 import { useState, useEffect } from "react"
@@ -59,6 +59,7 @@ const AdminSidebar = () => {
          { name: 'Feedback', href: '/admin/feedback', icon: MessageCircle, group: 'Support' },
         { name: 'Complaints', href: '/admin/complaints', icon: AlertCircle, group: 'Support' },
         { name: 'Coupons', href: '/admin/coupons', icon: TicketPercentIcon, group: 'Promotions' },
+        { name: 'Charges', href: '/admin/charges', icon: CreditCard, group: 'Management' },
         { name: 'Flash Sales', href: '/admin/flash-sales', icon: Flame, group: 'Promotions' },
         { name: 'CrashCash', href: '/admin/crashcash', icon: Coins, group: 'Promotions' },
         { name: 'Analytics', href: '/admin/events', icon: TrendingUp, group: 'Reports' },

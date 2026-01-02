@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import { Mail, MessageCircle, RotateCcw } from 'lucide-react'
 
 export default function VerifyOTP() {
@@ -9,7 +10,7 @@ export default function VerifyOTP() {
     const [error, setError] = useState('')
     const [signupData, setSignupData] = useState(null)
     const [otpType, setOtpType] = useState('')
-    const [resendTimer, setResendTimer] = useState(60)
+    const [resendTimer, setResendTimer] = useState(120)
     const [canResend, setCanResend] = useState(false)
     const [verificationOTP, setVerificationOTP] = useState('')
 
@@ -30,7 +31,7 @@ export default function VerifyOTP() {
 
     useEffect(() => {
         if (resendTimer > 0) {
-            const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000)
+            const timer = setTimeout(() => setResendTimer((prev) => prev - 1), 1000)
             return () => clearTimeout(timer)
         } else {
             setCanResend(true)
@@ -81,7 +82,7 @@ export default function VerifyOTP() {
     const handleResend = () => {
         const newOTP = Math.floor(100000 + Math.random() * 900000).toString()
         localStorage.setItem('verificationOTP', newOTP)
-        setResendTimer(60)
+        setResendTimer(120)
         setCanResend(false)
         setOtp('')
         setError('')
@@ -146,6 +147,23 @@ export default function VerifyOTP() {
                             <p className="text-xs text-slate-500 mt-2">
                                 Demo OTP: {verificationOTP}
                             </p>
+                            <div className="mt-3 text-center">
+                                {!canResend ? (
+                                    <p className="text-slate-600 text-sm">
+                                        Didn't receive OTP? Resend in{' '}
+                                        <span className="font-semibold text-red-600">{resendTimer}s</span>
+                                    </p>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleResend}
+                                        className="inline-flex items-center justify-center gap-2 text-red-600 hover:text-red-700 font-semibold"
+                                    >
+                                        <RotateCcw size={16} />
+                                        Resend OTP
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         <button
@@ -155,25 +173,6 @@ export default function VerifyOTP() {
                             Verify OTP
                         </button>
                     </form>
-
-                    <div className="mt-6 pt-6 border-t border-slate-200">
-                        <div className="text-center">
-                            {!canResend ? (
-                                <p className="text-slate-600 text-sm">
-                                    Didn't receive OTP? Resend in{' '}
-                                    <span className="font-semibold text-red-600">{resendTimer}s</span>
-                                </p>
-                            ) : (
-                                <button
-                                    onClick={handleResend}
-                                    className="flex items-center justify-center gap-2 mx-auto text-red-600 hover:text-red-700 font-semibold"
-                                >
-                                    <RotateCcw size={16} />
-                                    Resend OTP
-                                </button>
-                            )}
-                        </div>
-                    </div>
 
                     <div className="mt-6 text-center">
                         <p className="text-slate-600 text-sm">

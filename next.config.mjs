@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    compiler: {
+        styledComponents: true,
+    },
+    skipTrailingSlashRedirect: true,
+    serverExternalPackages: ['@prisma/client', 'prisma'],
+    experimental: {
+        // Future experimental flags can go here
+    },
     images: {
         unoptimized: true,
         remotePatterns: [
@@ -20,6 +28,15 @@ const nextConfig = {
     async headers() {
         return [
             {
+                source: '/api/:path*',
+                headers: [
+                    {
+                        key: 'x-middleware-cache',
+                        value: 'no-cache',
+                    },
+                ],
+            },
+            {
                 source: '/sw.js',
                 headers: [
                     {
@@ -33,6 +50,9 @@ const nextConfig = {
                 ],
             },
         ];
+    },
+    async redirects() {
+        return [];
     },
 };
 

@@ -4,14 +4,13 @@ import { Wifi, WifiOff, RefreshCw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export default function ConnectionStatus({ className = '' }) {
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline] = useState(() => {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true
+  })
   const [showStatus, setShowStatus] = useState(false)
   const [lastSync, setLastSync] = useState(null)
 
   useEffect(() => {
-    // Check initial state
-    setIsOnline(navigator.onLine)
-
     const handleOnline = () => {
       setIsOnline(true)
       setShowStatus(true)
@@ -68,7 +67,7 @@ export default function ConnectionStatus({ className = '' }) {
             ) : (
               <>
                 <WifiOff size={16} />
-                <span className="text-sm font-medium">You're offline</span>
+                <span className="text-sm font-medium">Offline</span>
               </>
             )}
           </div>
