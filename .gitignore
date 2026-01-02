@@ -148,3 +148,8 @@ local_*/
 /fix-*.js
 /fix-*.cjs
 /fix-*.ps1
+
+# ==================== BACKUPS ====================
+backup-*.zip
+*.backup
+*.bak
