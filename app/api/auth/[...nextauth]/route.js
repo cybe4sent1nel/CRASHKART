@@ -1,8 +1,22 @@
 export const dynamic = 'force-dynamic'
 
-import NextAuth from "next-auth"
-import { authOptions } from "@/lib/auth"
+let handler
 
-const handler = NextAuth(authOptions)
+async function getHandler() {
+  if (!handler) {
+    const NextAuth = (await import("next-auth")).default
+    const { authOptions } = await import("@/lib/auth")
+    handler = NextAuth(authOptions)
+  }
+  return handler
+}
 
-export { handler as GET, handler as POST }
+export async function GET(req, res) {
+  const h = await getHandler()
+  return h(req, res)
+}
+
+export async function POST(req, res) {
+  const h = await getHandler()
+  return h(req, res)
+}
