@@ -213,9 +213,9 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
                 // Show toast and add to wallet (CRITICAL: Check AND set flag BEFORE async call)
                 if (generatedReward.type === 'crashcash') {
                     if (!rewardClaimedRef.current) {
-                        rewardClaimedRef.current = true // Set IMMEDIATELY to block duplicates
                         console.log('🎯 Claiming CrashCash reward:', generatedReward.amount)
                         toast.success(`🎉 You won ₹${generatedReward.amount} CrashCash!`)
+                        // Call the API (it will set rewardClaimedRef inside)
                         addCrashCashToWallet(generatedReward.amount)
                     } else {
                         console.log('⚠️ Duplicate scratch detected at claim check, blocked')
@@ -234,11 +234,14 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
     }
 
     const addCrashCashToWallet = async (amount) => {
-        // ULTIMATE GUARD: Check if already claimed before doing ANYTHING
+        // ULTIMATE GUARD: Check and set flag atomically
         if (rewardClaimedRef.current) {
             console.log('⚠️ addCrashCashToWallet called but reward already claimed, aborting')
             return
         }
+        
+        // Set flag IMMEDIATELY to block any other calls
+        rewardClaimedRef.current = true
         
         try {
             const token = localStorage.getItem('token')
