@@ -12,6 +12,7 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
     const [scratchPercentage, setScratchPercentage] = useState(0)
     const revealedRef = useRef(false)
     const rewardClaimedRef = useRef(false)
+    const processingRef = useRef(false) // Prevent concurrent processing
     const scratchSessionId = useRef(`scratch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
 
     const generateReward = () => {
@@ -129,7 +130,8 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
     }
 
     const handleScratch = (e) => {
-        if (revealedRef.current) return
+        // CRITICAL: Exit immediately if already revealed or processing
+        if (revealedRef.current || processingRef.current) return
 
         const canvas = canvasRef.current
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -156,8 +158,21 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
         const percentage = calculateScratchPercentage(canvas, ctx)
         setScratchPercentage(percentage)
 
-        if (percentage > 60 && !revealedRef.current) {
+        // CRITICAL: Atomic check-and-set to prevent ANY race conditions
+        if (percentage > 60) {
+            // Set processing flag FIRST - blocks ALL subsequent calls
+            if (processingRef.current) return
+            processingRef.current = true
+            
+            // Double-check revealedRef hasn't been set by another thread
+            if (revealedRef.current) {
+                processingRef.current = false
+                return
+            }
+            
+            // Now set revealed flag
             revealedRef.current = true
+            
             const generatedReward = generateReward()
             setReward(generatedReward)
             setIsRevealed(true)
@@ -174,10 +189,11 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
                 if (generatedReward.type === 'crashcash') {
                     if (!rewardClaimedRef.current) {
                         rewardClaimedRef.current = true // Set IMMEDIATELY to block duplicates
+                        console.log('🎯 Claiming CrashCash reward:', generatedReward.amount)
                         toast.success(`🎉 You won ₹${generatedReward.amount} CrashCash!`)
                         addCrashCashToWallet(generatedReward.amount)
                     } else {
-                        console.log('⚠️ Duplicate scratch detected at line 173, blocked')
+                        console.log('⚠️ Duplicate scratch detected at claim check, blocked')
                     }
                 } else if (generatedReward.type === 'discount') {
                     toast.success(`🎉 You won ${generatedReward.discount}% discount!`)
@@ -193,6 +209,12 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
     }
 
     const addCrashCashToWallet = async (amount) => {
+        // ULTIMATE GUARD: Check if already claimed before doing ANYTHING
+        if (rewardClaimedRef.current) {
+            console.log('⚠️ addCrashCashToWallet called but reward already claimed, aborting')
+            return
+        }
+        
         try {
             const token = localStorage.getItem('token')
             const user = JSON.parse(localStorage.getItem('user') || '{}')

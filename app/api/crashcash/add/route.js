@@ -75,32 +75,37 @@ export async function POST(req) {
             }
         }
         
-        // ADDITIONAL SAFEGUARD: Check for duplicate scratch cards by time + amount + user
-        // If same user claimed same amount within last 10 seconds, it's likely a duplicate
-        if (normalizedSource === 'scratch_card') {
-            const tenSecondsAgo = new Date(Date.now() - 10000)
-            const recentDuplicate = await prisma.crashCashReward.findFirst({
-                where: {
-                    userId: user.id,
-                    source: 'scratch_card',
-                    amount: amount,
-                    earnedAt: {
-                        gte: tenSecondsAgo
-                    }
+        // UNIVERSAL DUPLICATE GUARD: Check for ANY duplicate by time + amount + user + source
+        // If same user claimed same amount from same source within last 10 seconds, block it
+        const tenSecondsAgo = new Date(Date.now() - 10000)
+        const recentDuplicate = await prisma.crashCashReward.findFirst({
+            where: {
+                userId: user.id,
+                source: normalizedSource, // ✅ Check source/method too!
+                amount: amount,
+                earnedAt: {
+                    gte: tenSecondsAgo
                 }
-            })
-            
-            if (recentDuplicate) {
-                console.log('⚠️ Duplicate scratch card detected (same amount within 10s):', {
-                    amount,
-                    recentId: recentDuplicate.id,
-                    timestamp: recentDuplicate.earnedAt
-                })
-                return Response.json(
-                    { message: 'Duplicate scratch card reward detected' },
-                    { status: 409 }
-                )
             }
+        })
+        
+        if (recentDuplicate) {
+            console.log('⚠️ DUPLICATE DETECTED - Same user, amount, source within 10s:', {
+                userId: user.id,
+                source: normalizedSource,
+                amount: amount,
+                recentId: recentDuplicate.id,
+                recentTimestamp: recentDuplicate.earnedAt,
+                timeDiff: Date.now() - new Date(recentDuplicate.earnedAt).getTime() + 'ms'
+            })
+            return Response.json(
+                { 
+                    success: false,
+                    message: `Duplicate ${normalizedSource} reward detected. Already claimed ₹${amount} from ${normalizedSource}.`,
+                    existingReward: recentDuplicate.id
+                },
+                { status: 409 }
+            )
         }
 
         // For orders, check if reward already exists
