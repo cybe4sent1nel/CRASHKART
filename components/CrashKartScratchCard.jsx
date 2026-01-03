@@ -170,11 +170,15 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
                     origin: { y: 0.6 }
                 })
                 
-                // Show toast and add to wallet (only once)
-                if (generatedReward.type === 'crashcash' && !rewardClaimedRef.current) {
-                    rewardClaimedRef.current = true
-                    toast.success(`🎉 You won ₹${generatedReward.amount} CrashCash!`)
-                    addCrashCashToWallet(generatedReward.amount)
+                // Show toast and add to wallet (CRITICAL: Check AND set flag BEFORE async call)
+                if (generatedReward.type === 'crashcash') {
+                    if (!rewardClaimedRef.current) {
+                        rewardClaimedRef.current = true // Set IMMEDIATELY to block duplicates
+                        toast.success(`🎉 You won ₹${generatedReward.amount} CrashCash!`)
+                        addCrashCashToWallet(generatedReward.amount)
+                    } else {
+                        console.log('⚠️ Duplicate scratch detected at line 173, blocked')
+                    }
                 } else if (generatedReward.type === 'discount') {
                     toast.success(`🎉 You won ${generatedReward.discount}% discount!`)
                 } else if (generatedReward.type === 'product-discount') {
@@ -225,7 +229,7 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
             } else {
                 const error = await response.json()
                 console.error('❌ Failed to add scratch card CrashCash:', error)
-                // If it's a duplicate error, just ignore it
+                // If it's a duplicate error, just ignore it silently
                 if (!error.message?.includes('already claimed')) {
                     toast.error('Failed to add reward. Please contact support.')
                 }
