@@ -21,69 +21,99 @@ export default function CrashCashBalance() {
 
     useEffect(() => {
         let mounted = true
+        let debounceTimer = null
 
-        const loadFromServer = async () => {
-            try {
-                const user = JSON.parse(localStorage.getItem('user') || '{}')
-                const userId = user.id
-                if (!userId) return
-
-                // Live balance
-                const balResp = await fetch(`/api/crashcash/balance?userId=${userId}`, {
-                    credentials: 'include'
-                })
-                if (balResp.ok) {
-                    const b = await balResp.json()
-                    if (mounted) setBalance(b.balance || 0)
-                }
-
-                // Rewards
-                const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`, {
-                    credentials: 'include'
-                })
-                if (rewardsResp.ok) {
-                    const data = await rewardsResp.json()
-                    if (mounted) {
-                        const active = data.activeRewards || []
-                        setScratchRewards(active.filter(r => r.source === 'scratch_card'))
-                        setOrderRewards(active.filter(r => r.source === 'order_placed'))
-                        setBonusRewards(active.filter(r => r.source === 'welcome_bonus'))
+        const loadFromServer = async (immediate = false) => {
+            // Debounce to prevent rapid consecutive calls
+            if (debounceTimer && !immediate) {
+                clearTimeout(debounceTimer)
+            }
+            
+            const execute = async () => {
+                try {
+                    console.log('🔄 Refreshing CrashCash balance from server...')
+                    const user = JSON.parse(localStorage.getItem('user') || '{}')
+                    const userId = user.id
+                    if (!userId) {
+                        console.warn('⚠️ No userId found, skipping balance refresh')
+                        return
                     }
-                }
 
-                // last win: fall back to localStorage
-                const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
-                if (mounted) setLastWin(lastWinInfo)
-            } catch (err) {
-                console.warn('Live load failed, falling back to localStorage', err)
-                // Fallback to previous local approach
-                removeDuplicateRewards()
-                const calculatedBalance = updateCrashCashBalance()
-                if (mounted) setBalance(calculatedBalance)
-                const saved = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
-                if (mounted) setScratchRewards(saved.filter(r => r.type === 'reward') || [])
-                const orders = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
-                if (mounted) setOrderRewards(orders || [])
-                const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
-                if (mounted) setLastWin(lastWinInfo)
+                    // Live balance
+                    const balResp = await fetch(`/api/crashcash/balance?userId=${userId}`, {
+                        credentials: 'include'
+                    })
+                    if (balResp.ok) {
+                        const b = await balResp.json()
+                        if (mounted) {
+                            console.log('✅ Balance updated:', b.balance)
+                            setBalance(b.balance || 0)
+                            // Update localStorage user object
+                            user.crashCashBalance = b.balance || 0
+                            localStorage.setItem('user', JSON.stringify(user))
+                        }
+                    }
+
+                    // Rewards
+                    const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`, {
+                        credentials: 'include'
+                    })
+                    if (rewardsResp.ok) {
+                        const data = await rewardsResp.json()
+                        if (mounted) {
+                            const active = data.activeRewards || []
+                            console.log('✅ Rewards loaded:', active.length, 'active rewards')
+                            setScratchRewards(active.filter(r => r.source === 'scratch_card'))
+                            setOrderRewards(active.filter(r => r.source === 'order_placed'))
+                            setBonusRewards(active.filter(r => r.source === 'welcome_bonus'))
+                        }
+                    }
+
+                    // last win: fall back to localStorage
+                    const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
+                    if (mounted) setLastWin(lastWinInfo)
+                } catch (err) {
+                    console.warn('❌ Live load failed, falling back to localStorage', err)
+                    // Fallback to previous local approach
+                    removeDuplicateRewards()
+                    const calculatedBalance = updateCrashCashBalance()
+                    if (mounted) setBalance(calculatedBalance)
+                    const saved = JSON.parse(localStorage.getItem('scratchCardRewards') || '[]')
+                    if (mounted) setScratchRewards(saved.filter(r => r.type === 'reward') || [])
+                    const orders = JSON.parse(localStorage.getItem('orderCrashCashRewards') || '[]')
+                    if (mounted) setOrderRewards(orders || [])
+                    const lastWinInfo = JSON.parse(localStorage.getItem('lastCrashcashWin') || 'null')
+                    if (mounted) setLastWin(lastWinInfo)
+                }
+            }
+            
+            if (immediate) {
+                execute()
+            } else {
+                debounceTimer = setTimeout(execute, 500)
             }
         }
 
-        loadFromServer()
+        // Load immediately on mount
+        loadFromServer(true)
 
         const handler = () => {
-            loadFromServer()
+            console.log('📡 CrashCash event received, refreshing...')
+            loadFromServer(false)
         }
 
         window.addEventListener('storage', handler)
         window.addEventListener('crashcash-update', handler)
         window.addEventListener('crashcash-added', handler)
+        window.addEventListener('order-completed', handler)
 
         return () => {
             mounted = false
+            if (debounceTimer) clearTimeout(debounceTimer)
             window.removeEventListener('storage', handler)
             window.removeEventListener('crashcash-update', handler)
             window.removeEventListener('crashcash-added', handler)
+            window.removeEventListener('order-completed', handler)
         }
     }, [])
 

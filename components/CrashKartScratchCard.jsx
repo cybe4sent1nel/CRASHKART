@@ -11,6 +11,7 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
     const [reward, setReward] = useState(null)
     const [scratchPercentage, setScratchPercentage] = useState(0)
     const revealedRef = useRef(false)
+    const rewardClaimedRef = useRef(false)
 
     const generateReward = () => {
         const random = Math.random()
@@ -168,10 +169,10 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
                     origin: { y: 0.6 }
                 })
                 
-                // Show toast
-                if (generatedReward.type === 'crashcash') {
+                // Show toast and add to wallet (only once)
+                if (generatedReward.type === 'crashcash' && !rewardClaimedRef.current) {
+                    rewardClaimedRef.current = true
                     toast.success(`🎉 You won ₹${generatedReward.amount} CrashCash!`)
-                    // Add to user's wallet (you'll need to implement this API call)
                     addCrashCashToWallet(generatedReward.amount)
                 } else if (generatedReward.type === 'discount') {
                     toast.success(`🎉 You won ${generatedReward.discount}% discount!`)
@@ -191,25 +192,36 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
             const token = localStorage.getItem('token')
             const user = JSON.parse(localStorage.getItem('user') || '{}')
             
-            const response = await fetch('/api/user/crashcash/add', {
+            console.log('🎯 Adding CrashCash from scratch card:', amount)
+            
+            const response = await fetch('/api/crashcash/add', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
+                credentials: 'include',
                 body: JSON.stringify({ amount, source: 'scratch_card' })
             })
 
             if (response.ok) {
+                const data = await response.json()
+                console.log('✅ Scratch card CrashCash added:', data)
+                
                 // Update local storage snapshot for quick UI
-                user.crashCashBalance = (user.crashCashBalance || 0) + amount
+                user.crashCashBalance = data.newBalance
                 localStorage.setItem('user', JSON.stringify(user))
                 localStorage.setItem('lastCrashcashWin', JSON.stringify({ amount, date: new Date().toISOString() }))
+                
+                // Dispatch events to update UI
                 window.dispatchEvent(new Event('crashcash-update'))
-                window.dispatchEvent(new Event('crashcash-added'))
+                window.dispatchEvent(new CustomEvent('crashcash-added', { detail: { amount, newBalance: data.newBalance } }))
+            } else {
+                const error = await response.json()
+                console.error('❌ Failed to add scratch card CrashCash:', error)
             }
         } catch (error) {
-            console.error('Failed to add CrashCash:', error)
+            console.error('❌ Error adding CrashCash:', error)
         }
     }
 

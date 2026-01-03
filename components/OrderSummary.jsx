@@ -118,6 +118,18 @@ const OrderSummary = ({ totalPrice, items }) => {
             // Save the real order ID from API response
             setRealOrderId(result.orderId);
             console.log('✅ Real Order ID from API:', result.orderId);
+            
+            // Dispatch event if CrashCash was earned from order
+            if (result.crashCashEarned && result.crashCashEarned > 0) {
+                console.log(`💰 Order earned ₹${result.crashCashEarned} CrashCash`)
+                window.dispatchEvent(new CustomEvent('order-completed', { 
+                    detail: { 
+                        orderId: result.orderId,
+                        crashCashEarned: result.crashCashEarned 
+                    } 
+                }))
+                window.dispatchEvent(new Event('crashcash-update'))
+            }
 
         } catch (error) {
             console.error('Order creation error:', error);

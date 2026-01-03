@@ -106,6 +106,19 @@ export default function PaymentMethod() {
 
                 if (result?.orderId) {
                     toast.success('Order created successfully!')
+                    
+                    // Dispatch event if CrashCash was earned from order
+                    if (result.crashCashEarned && result.crashCashEarned > 0) {
+                        console.log(`💰 Order earned ₹${result.crashCashEarned} CrashCash`)
+                        window.dispatchEvent(new CustomEvent('order-completed', { 
+                            detail: { 
+                                orderId: result.orderId,
+                                crashCashEarned: result.crashCashEarned 
+                            } 
+                        }))
+                        window.dispatchEvent(new Event('crashcash-update'))
+                    }
+                    
                     sessionStorage.removeItem('checkoutData')
                     sessionStorage.removeItem('buyNowData')
                     router.push(`/order-success/${result.orderId}`)

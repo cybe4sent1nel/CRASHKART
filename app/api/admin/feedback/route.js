@@ -15,7 +15,7 @@ const sortMappings = {
 
 export async function GET(request) {
   try {
-    const session = await getCurrentSession()
+    const session = await getCurrentSession(request)
     
     if (!session?.user?.email) {
       return NextResponse.json(

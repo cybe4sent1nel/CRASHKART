@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { sendWelcomeEmail } from '@/lib/email';
 import { generateUserToken } from '@/lib/authTokens';
 import { createCrashCashReward } from '@/lib/rewards';
+import { setSessionCookie } from '@/lib/sessionCookie';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,6 +134,9 @@ export async function POST(request) {
 
         // Generate JWT token
         const token = generateUserToken(user, { loginMethod: 'google' })
+        
+        // Set session cookie for server-side authentication
+        await setSessionCookie(user.id, { email: user.email, loginMethod: 'google' })
 
         return NextResponse.json({
             success: true,

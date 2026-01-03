@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { generateUserToken } from '@/lib/authTokens';
-
+import { generateUserToken } from '@/lib/authTokens';import { setSessionCookie } from '@/lib/sessionCookie'
 export const dynamic = 'force-dynamic';
 
 let prisma;
@@ -78,6 +77,9 @@ export async function POST(request) {
 
         // Generate JWT token
         const token = generateUserToken(user)
+        
+        // Set session cookie for server-side authentication
+        await setSessionCookie(user.id, { email: user.email, loginMethod: 'password' })
 
         // Return user data (excluding password)
         const { password: _, ...userWithoutPassword } = user;

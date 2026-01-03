@@ -41,11 +41,15 @@ export default function FeedbackPage() {
   const fetchFeedbacks = async () => {
     try {
       setLoading(true)
+      const token = localStorage.getItem('token')
       const response = await fetch(
         `/api/admin/feedback?type=${activeTab}&sortBy=${sortBy}`,
         { 
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' } 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          } 
         }
       )
       const data = await response.json()
@@ -66,10 +70,14 @@ export default function FeedbackPage() {
   const handleStatusChange = async (feedbackId, newStatus) => {
     try {
       setUpdating(true)
+      const token = localStorage.getItem('token')
       const response = await fetch(`/api/admin/feedback/${feedbackId}`, {
         method: 'PATCH',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ status: newStatus })
       })
 
@@ -101,9 +109,11 @@ export default function FeedbackPage() {
     if (!confirmed) return
 
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch(`/api/admin/feedback/${feedbackId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       })
 
       if (response.ok) {
