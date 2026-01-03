@@ -43,7 +43,10 @@ export default function FeedbackPage() {
       setLoading(true)
       const response = await fetch(
         `/api/admin/feedback?type=${activeTab}&sortBy=${sortBy}`,
-        { headers: { 'Content-Type': 'application/json' } }
+        { 
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' } 
+        }
       )
       const data = await response.json()
       
@@ -65,6 +68,7 @@ export default function FeedbackPage() {
       setUpdating(true)
       const response = await fetch(`/api/admin/feedback/${feedbackId}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
@@ -98,7 +102,8 @@ export default function FeedbackPage() {
 
     try {
       const response = await fetch(`/api/admin/feedback/${feedbackId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       })
 
       if (response.ok) {
