@@ -74,6 +74,34 @@ export async function POST(req) {
                 )
             }
         }
+        
+        // ADDITIONAL SAFEGUARD: Check for duplicate scratch cards by time + amount + user
+        // If same user claimed same amount within last 10 seconds, it's likely a duplicate
+        if (normalizedSource === 'scratch_card') {
+            const tenSecondsAgo = new Date(Date.now() - 10000)
+            const recentDuplicate = await prisma.crashCashReward.findFirst({
+                where: {
+                    userId: user.id,
+                    source: 'scratch_card',
+                    amount: amount,
+                    earnedAt: {
+                        gte: tenSecondsAgo
+                    }
+                }
+            })
+            
+            if (recentDuplicate) {
+                console.log('⚠️ Duplicate scratch card detected (same amount within 10s):', {
+                    amount,
+                    recentId: recentDuplicate.id,
+                    timestamp: recentDuplicate.earnedAt
+                })
+                return Response.json(
+                    { message: 'Duplicate scratch card reward detected' },
+                    { status: 409 }
+                )
+            }
+        }
 
         // For orders, check if reward already exists
         if (normalizedSource === 'order_placed' && orderId) {
