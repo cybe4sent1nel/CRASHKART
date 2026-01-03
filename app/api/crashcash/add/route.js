@@ -47,6 +47,22 @@ export async function POST(req) {
         const normalizedSource = String(source || 'scratch_card').replace('-', '_')
         
         console.log(`🔵 Request:`, { amount, source: normalizedSource, orderId, scratchSessionId })
+        
+        // REQUEST-LEVEL LOCK: Prevent concurrent requests from same user
+        const lockKey = `${user.id}_${normalizedSource}_${amount}`
+        if (requestLocks.has(lockKey)) {
+            console.log('⚠️ REQUEST BLOCKED: Concurrent request detected', lockKey)
+            return Response.json(
+                { success: false, message: 'Request already in progress' },
+                { status: 429 }
+            )
+        }
+        
+        // Set lock
+        requestLocks.set(lockKey, Date.now())
+        
+        // Auto-cleanup lock after 5 seconds
+        setTimeout(() => requestLocks.delete(lockKey), 5000)
 
         if (!amount || amount <= 0) {
             console.error('❌ Invalid amount:', amount)
@@ -78,31 +94,43 @@ export async function POST(req) {
         // UNIVERSAL DUPLICATE GUARD: Check for ANY duplicate by time + amount + user + source
         // If same user claimed same amount from same source within last 10 seconds, block it
         const tenSecondsAgo = new Date(Date.now() - 10000)
-        const recentDuplicate = await prisma.crashCashReward.findFirst({
-            where: {
-                userId: user.id,
-                source: normalizedSource, // ✅ Check source/method too!
-                amount: amount,
-                earnedAt: {
-                    gte: tenSecondsAgo
+        
+        // Use a transaction to prevent race conditions between check and insert
+        const duplicateCheck = await prisma.$transaction(async (tx) => {
+            // Check for recent duplicate
+            const recentDuplicate = await tx.crashCashReward.findFirst({
+                where: {
+                    userId: user.id,
+                    source: normalizedSource, // ✅ Check source/method too!
+                    amount: amount,
+                    earnedAt: {
+                        gte: tenSecondsAgo
+                    }
+                },
+                orderBy: {
+                    earnedAt: 'desc'
                 }
-            }
+            })
+            
+            return recentDuplicate
         })
         
-        if (recentDuplicate) {
+        if (duplicateCheck) {
+            requestLocks.delete(lockKey) // Release lock
+            const timeDiffMs = Date.now() - new Date(duplicateCheck.earnedAt).getTime()
             console.log('⚠️ DUPLICATE DETECTED - Same user, amount, source within 10s:', {
                 userId: user.id,
                 source: normalizedSource,
                 amount: amount,
-                recentId: recentDuplicate.id,
-                recentTimestamp: recentDuplicate.earnedAt,
-                timeDiff: Date.now() - new Date(recentDuplicate.earnedAt).getTime() + 'ms'
+                recentId: duplicateCheck.id,
+                recentTimestamp: duplicateCheck.earnedAt,
+                timeDiff: `${timeDiffMs}ms (${(timeDiffMs / 1000).toFixed(2)}s)`
             })
             return Response.json(
                 { 
                     success: false,
-                    message: `Duplicate ${normalizedSource} reward detected. Already claimed ₹${amount} from ${normalizedSource}.`,
-                    existingReward: recentDuplicate.id
+                    message: `Duplicate ${normalizedSource} reward detected. Already claimed ₹${amount} from ${normalizedSource} ${(timeDiffMs / 1000).toFixed(1)}s ago.`,
+                    existingReward: duplicateCheck.id
                 },
                 { status: 409 }
             )

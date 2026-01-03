@@ -81,37 +81,49 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
         // CrashKart signature gradient background with texture
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
         gradient.addColorStop(0, '#4285f4')
+        gradient.addColorStop(0.3, '#5b9cf5')
         gradient.addColorStop(0.5, '#34a853')
+        gradient.addColorStop(0.7, '#66bb6a')
         gradient.addColorStop(1, '#fbbc05')
         
         ctx.fillStyle = gradient
         ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-        // Add overlay pattern
-        ctx.globalAlpha = 0.2
-        for (let i = 0; i < 50; i++) {
+        // Add shimmer effect overlay
+        ctx.globalAlpha = 0.3
+        const shimmer = ctx.createLinearGradient(0, 0, canvas.width, 0)
+        shimmer.addColorStop(0, 'rgba(255, 255, 255, 0)')
+        shimmer.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)')
+        shimmer.addColorStop(1, 'rgba(255, 255, 255, 0)')
+        ctx.fillStyle = shimmer
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.globalAlpha = 1
+
+        // Add sparkle overlay pattern
+        ctx.globalAlpha = 0.4
+        for (let i = 0; i < 80; i++) {
             ctx.beginPath()
-            ctx.arc(
-                Math.random() * canvas.width,
-                Math.random() * canvas.height,
-                Math.random() * 3,
-                0,
-                Math.PI * 2
-            )
+            const x = Math.random() * canvas.width
+            const y = Math.random() * canvas.height
+            const size = Math.random() * 4 + 1
+            ctx.arc(x, y, size, 0, Math.PI * 2)
             ctx.fillStyle = 'white'
             ctx.fill()
         }
         ctx.globalAlpha = 1
 
-        // Text
+        // Text with glow effect
+        ctx.shadowBlur = 10
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)'
         ctx.fillStyle = 'white'
-        ctx.font = 'bold 24px Arial'
+        ctx.font = 'bold 30px Arial'
         ctx.textAlign = 'center'
-        ctx.fillText('🎁', canvas.width / 2, canvas.height / 2 - 50)
-        ctx.font = 'bold 20px Arial'
+        ctx.fillText('🎁', canvas.width / 2, canvas.height / 2 - 60)
+        ctx.font = 'bold 24px Arial'
         ctx.fillText('Scratch to reveal', canvas.width / 2, canvas.height / 2)
-        ctx.font = '16px Arial'
-        ctx.fillText('your reward!', canvas.width / 2, canvas.height / 2 + 30)
+        ctx.font = '18px Arial'
+        ctx.fillText('your reward!', canvas.width / 2, canvas.height / 2 + 40)
+        ctx.shadowBlur = 0
     }, [])
 
     const calculateScratchPercentage = (canvas, ctx) => {
@@ -151,8 +163,21 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
         const y = clientY - rect.top
 
         ctx.globalCompositeOperation = 'destination-out'
+        
+        // Enhanced scratch effect with gradient and glow
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 30)
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)')
+        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)')
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0.3)')
+        
+        ctx.fillStyle = gradient
         ctx.beginPath()
-        ctx.arc(x, y, 25, 0, Math.PI * 2)
+        ctx.arc(x, y, 30, 0, Math.PI * 2) // Larger brush for smoother feel
+        ctx.fill()
+        
+        // Add smaller center for precision
+        ctx.beginPath()
+        ctx.arc(x, y, 20, 0, Math.PI * 2)
         ctx.fill()
 
         const percentage = calculateScratchPercentage(canvas, ctx)
@@ -281,6 +306,24 @@ export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
 
                 {/* Scratch Area */}
                 <div className="p-6">
+                    {/* Progress Bar */}
+                    {!isRevealed && (
+                        <div className="mb-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm font-medium text-slate-600">✨ Scratch Progress</span>
+                                <span className="text-sm font-bold text-blue-600">{scratchPercentage.toFixed(0)}%</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden shadow-inner">
+                                <div 
+                                    className="bg-gradient-to-r from-blue-500 via-green-500 to-yellow-500 h-full transition-all duration-300 ease-out rounded-full shadow-lg"
+                                    style={{ width: `${scratchPercentage}%` }}
+                                >
+                                    <div className="w-full h-full bg-white/30 animate-pulse" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
                     {!isRevealed ? (
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center justify-center">
