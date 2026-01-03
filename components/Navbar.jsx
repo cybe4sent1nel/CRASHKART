@@ -158,17 +158,24 @@ export default function Navbar() {
       loadCrashCash();
     };
 
+    const handleCrashcashAdded = () => {
+      console.log('💰 CrashCash added event received, refreshing balance...');
+      loadCrashCash();
+    };
+
     const handleProfileUpdate = () => {
       loadUser();
     };
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('crashcash-update', handleCrashcashUpdate);
+    window.addEventListener('crashcash-added', handleCrashcashAdded);
     window.addEventListener('profileUpdated', handleProfileUpdate);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('crashcash-update', handleCrashcashUpdate);
+      window.removeEventListener('crashcash-added', handleCrashcashAdded);
       window.removeEventListener('profileUpdated', handleProfileUpdate);
       clearTimeout(storageTimeout);
       cancelled = true;
