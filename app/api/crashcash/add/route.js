@@ -43,10 +43,10 @@ export async function POST(req) {
         
         console.log(`✅ Authenticated user: ${user.email} (${user.id})`)
 
-        const { amount, source = 'scratch_card', orderId } = await req.json()
+        const { amount, source = 'scratch_card', orderId, scratchSessionId } = await req.json()
         const normalizedSource = String(source || 'scratch_card').replace('-', '_')
         
-        console.log(`🔵 Request:`, { amount, source: normalizedSource, orderId })
+        console.log(`🔵 Request:`, { amount, source: normalizedSource, orderId, scratchSessionId })
 
         if (!amount || amount <= 0) {
             console.error('❌ Invalid amount:', amount)
@@ -56,9 +56,48 @@ export async function POST(req) {
             )
         }
 
+        // For scratch cards, check if this session was already claimed
+        if (normalizedSource === 'scratch_card' && scratchSessionId) {
+            const existing = await prisma.crashCashReward.findFirst({
+                where: {
+                    userId: user.id,
+                    source: 'scratch_card',
+                    scratchSessionId: scratchSessionId
+                }
+            })
+            
+            if (existing) {
+                console.log('⚠️ Scratch card already claimed for this session:', scratchSessionId)
+                return Response.json(
+                    { message: 'Reward already claimed for this scratch session' },
+                    { status: 409 }
+                )
+            }
+        }
+
+        // For orders, check if reward already exists
+        if (normalizedSource === 'order_placed' && orderId) {
+            const existing = await prisma.crashCashReward.findFirst({
+                where: {
+                    userId: user.id,
+                    orderId: orderId
+                }
+            })
+            
+            if (existing) {
+                console.log('⚠️ Order reward already exists for order:', orderId)
+                return Response.json({
+                    success: true,
+                    reward: existing,
+                    newBalance: user.crashCashBalance,
+                    message: 'Reward already exists for this order'
+                })
+            }
+        }
+
         // ✅ Use unified storage to add CrashCash (30-day expiry)
         console.log(`🔵 Calling unifiedStorage.addCrashCash...`)
-        const result = await unifiedStorage.addCrashCash(user.id, amount, normalizedSource, orderId)
+        const result = await unifiedStorage.addCrashCash(user.id, amount, normalizedSource, orderId, scratchSessionId)
 
         if (!result.success) {
             console.error('❌ addCrashCash failed:', result.error)

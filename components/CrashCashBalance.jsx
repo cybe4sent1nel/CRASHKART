@@ -63,9 +63,20 @@ export default function CrashCashBalance() {
                         if (mounted) {
                             const active = data.activeRewards || []
                             console.log('✅ Rewards loaded:', active.length, 'active rewards')
-                            setScratchRewards(active.filter(r => r.source === 'scratch_card'))
-                            setOrderRewards(active.filter(r => r.source === 'order_placed'))
-                            setBonusRewards(active.filter(r => r.source === 'welcome_bonus'))
+                            console.log('[CrashCashBalance] All rewards:', active);
+                            console.log('[CrashCashBalance] Sources:', active.map(r => r.source));
+                            
+                            const scratchFiltered = active.filter(r => r.source === 'scratch_card');
+                            const orderFiltered = active.filter(r => r.source === 'order_placed');
+                            const bonusFiltered = active.filter(r => r.source === 'welcome_bonus');
+                            
+                            console.log('[CrashCashBalance] Scratch rewards:', scratchFiltered.length);
+                            console.log('[CrashCashBalance] Order rewards:', orderFiltered.length, orderFiltered);
+                            console.log('[CrashCashBalance] Bonus rewards:', bonusFiltered.length);
+                            
+                            setScratchRewards(scratchFiltered)
+                            setOrderRewards(orderFiltered)
+                            setBonusRewards(bonusFiltered)
                         }
                     }
 
@@ -271,24 +282,38 @@ export default function CrashCashBalance() {
                         <h3 className="text-xl font-bold text-slate-900">Order Rewards ({orderRewards.length})</h3>
                     </div>
                     <div className="space-y-3">
-                        {orderRewards.map((reward, idx) => (
-                            <div key={idx} className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-l-4 border-blue-500">
+                        {orderRewards.map((reward) => (
+                            <div key={reward.id} className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-l-4 border-blue-500">
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1">
                                         <p className="font-semibold text-slate-900">
                                             ₹{reward.amount} CrashCash Earned
                                         </p>
-                                        <p className="text-xs text-slate-600 mt-1">
-                                            Order ID: {reward.orderId}
-                                        </p>
+                                        {reward.orderId && (
+                                            <p className="text-xs text-slate-600 mt-1">
+                                                Order ID: {reward.orderId.substring(0, 8)}...
+                                            </p>
+                                        )}
                                         <p className="text-xs text-slate-600 flex items-center gap-1 mt-1">
                                             <Clock size={14} />
-                                            {reward.awardedAt}
+                                            {new Date(reward.earnedAt).toLocaleDateString('en-US', { 
+                                                year: 'numeric', 
+                                                month: 'short', 
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
                                         </p>
+                                        {reward.expiresAt && (
+                                            <p className="text-xs text-slate-600 mt-1">
+                                                Expires: {new Date(reward.expiresAt).toLocaleDateString()}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-slate-600">Items</p>
-                                        <p className="text-lg font-bold text-blue-600">{reward.itemCount}</p>
+                                        <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+                                            {reward.status === 'active' ? 'Active' : reward.status}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

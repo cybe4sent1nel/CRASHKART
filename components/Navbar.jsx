@@ -165,6 +165,14 @@ export default function Navbar() {
       loadCrashCash();
     };
 
+    const handleOrderCompleted = (event) => {
+      console.log('🎉 Order completed event received, refreshing CrashCash balance...');
+      if (event.detail?.crashCashEarned) {
+        console.log(`💰 Order earned ₹${event.detail.crashCashEarned} CrashCash`);
+      }
+      loadCrashCash();
+    };
+
     const handleProfileUpdate = () => {
       loadUser();
     };
@@ -172,12 +180,14 @@ export default function Navbar() {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('crashcash-update', handleCrashcashUpdate);
     window.addEventListener('crashcash-added', handleCrashcashAdded);
+    window.addEventListener('order-completed', handleOrderCompleted);
     window.addEventListener('profileUpdated', handleProfileUpdate);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('crashcash-update', handleCrashcashUpdate);
       window.removeEventListener('crashcash-added', handleCrashcashAdded);
+      window.removeEventListener('order-completed', handleOrderCompleted);
       window.removeEventListener('profileUpdated', handleProfileUpdate);
       clearTimeout(storageTimeout);
       cancelled = true;

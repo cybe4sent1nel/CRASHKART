@@ -777,20 +777,22 @@ model SupportConversation {
 
 // CrashCash Rewards - tracks all scratch card rewards earned by users
 model CrashCashReward {
-    id            String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId        String   @db.ObjectId
-    orderId       String?  @db.ObjectId
-    amount        Float    // Reward amount earned
-    source        String   @default("scratch_card") // scratch_card, order_placed, refund, bonus
-    status        String   @default("active") // active, expired, used
-    productName   String?  // Product associated with reward
-    productImage  String?  // Product image for display
-    earnedAt      DateTime @default(now())
-    expiresAt     DateTime? // Optional expiry date
-    usedAt        DateTime? // When the reward was used
+    id               String    @id @default(auto()) @map("_id") @db.ObjectId
+    userId           String    @db.ObjectId
+    orderId          String?   @db.ObjectId
+    scratchSessionId String?   // Unique ID for scratch card session to prevent duplicates
+    amount           Float     // Reward amount earned
+    source           String    @default("scratch_card") // scratch_card, order_placed, refund, bonus
+    status           String    @default("active") // active, expired, used
+    productName      String?   // Product associated with reward
+    productImage     String?   // Product image for display
+    earnedAt         DateTime  @default(now())
+    expiresAt        DateTime? // Optional expiry date
+    usedAt           DateTime? // When the reward was used
     
     @@index([userId])
     @@index([orderId])
+    @@index([scratchSessionId])
     @@index([status])
     @@index([earnedAt])
 }

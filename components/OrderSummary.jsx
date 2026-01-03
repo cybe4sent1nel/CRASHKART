@@ -117,11 +117,15 @@ const OrderSummary = ({ totalPrice, items }) => {
 
             // Save the real order ID from API response
             setRealOrderId(result.orderId);
+            console.log('✅ Order created from OrderSummary:', result);
             console.log('✅ Real Order ID from API:', result.orderId);
+            
+            // Always log CrashCash status
+            console.log('💰 CrashCash earned from order:', result.crashCashEarned || 0);
             
             // Dispatch event if CrashCash was earned from order
             if (result.crashCashEarned && result.crashCashEarned > 0) {
-                console.log(`💰 Order earned ₹${result.crashCashEarned} CrashCash`)
+                console.log(`💰 Dispatching order-completed event with ₹${result.crashCashEarned} CrashCash`)
                 window.dispatchEvent(new CustomEvent('order-completed', { 
                     detail: { 
                         orderId: result.orderId,
@@ -129,6 +133,9 @@ const OrderSummary = ({ totalPrice, items }) => {
                     } 
                 }))
                 window.dispatchEvent(new Event('crashcash-update'))
+                console.log('✅ Events dispatched: order-completed, crashcash-update')
+            } else {
+                console.log('⚠️ No CrashCash earned or CrashCash add failed, events not dispatched')
             }
 
         } catch (error) {

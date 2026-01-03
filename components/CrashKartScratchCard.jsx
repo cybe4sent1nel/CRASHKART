@@ -4,7 +4,7 @@ import { Gift, Sparkles, X, ChevronRight, Coins } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import toast from 'react-hot-toast'
 
-export default function CrashKartScratchCard({ onReveal, onClose }) {
+export default function CrashKartScratchCard({ onReveal, onClose, orderId }) {
     const canvasRef = useRef(null)
     const [isScratching, setIsScratching] = useState(false)
     const [isRevealed, setIsRevealed] = useState(false)
@@ -12,6 +12,7 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
     const [scratchPercentage, setScratchPercentage] = useState(0)
     const revealedRef = useRef(false)
     const rewardClaimedRef = useRef(false)
+    const scratchSessionId = useRef(`scratch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
 
     const generateReward = () => {
         const random = Math.random()
@@ -192,7 +193,7 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
             const token = localStorage.getItem('token')
             const user = JSON.parse(localStorage.getItem('user') || '{}')
             
-            console.log('🎯 Adding CrashCash from scratch card:', amount)
+            console.log('🎯 Adding CrashCash from scratch card:', amount, 'sessionId:', scratchSessionId.current)
             
             const response = await fetch('/api/crashcash/add', {
                 method: 'POST',
@@ -201,7 +202,12 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 credentials: 'include',
-                body: JSON.stringify({ amount, source: 'scratch_card' })
+                body: JSON.stringify({ 
+                    amount, 
+                    source: 'scratch_card',
+                    scratchSessionId: scratchSessionId.current,
+                    orderId: orderId || null
+                })
             })
 
             if (response.ok) {
@@ -219,6 +225,10 @@ export default function CrashKartScratchCard({ onReveal, onClose }) {
             } else {
                 const error = await response.json()
                 console.error('❌ Failed to add scratch card CrashCash:', error)
+                // If it's a duplicate error, just ignore it
+                if (!error.message?.includes('already claimed')) {
+                    toast.error('Failed to add reward. Please contact support.')
+                }
             }
         } catch (error) {
             console.error('❌ Error adding CrashCash:', error)

@@ -850,6 +850,14 @@ export async function POST(req) {
         }
 
         // Return success
+        console.log('✅ Order creation complete:', {
+            orderId: order.id,
+            total: order.total,
+            crashCashEarned: crashCashAdded ? totalCrashCashEarned : 0,
+            crashCashAdded: crashCashAdded,
+            itemsCount: order.orderItems.length
+        })
+        
         return Response.json(
             {
                 success: true,

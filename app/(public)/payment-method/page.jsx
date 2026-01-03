@@ -105,11 +105,15 @@ export default function PaymentMethod() {
                 }
 
                 if (result?.orderId) {
+                    console.log('✅ COD Order created:', result)
                     toast.success('Order created successfully!')
+                    
+                    // Always log CrashCash status
+                    console.log('💰 CrashCash earned from order:', result.crashCashEarned || 0)
                     
                     // Dispatch event if CrashCash was earned from order
                     if (result.crashCashEarned && result.crashCashEarned > 0) {
-                        console.log(`💰 Order earned ₹${result.crashCashEarned} CrashCash`)
+                        console.log(`💰 Dispatching order-completed event with ₹${result.crashCashEarned} CrashCash`)
                         window.dispatchEvent(new CustomEvent('order-completed', { 
                             detail: { 
                                 orderId: result.orderId,
@@ -117,6 +121,9 @@ export default function PaymentMethod() {
                             } 
                         }))
                         window.dispatchEvent(new Event('crashcash-update'))
+                        console.log('✅ Events dispatched: order-completed, crashcash-update')
+                    } else {
+                        console.log('⚠️ No CrashCash earned or CrashCash add failed, events not dispatched')
                     }
                     
                     sessionStorage.removeItem('checkoutData')
