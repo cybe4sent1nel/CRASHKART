@@ -20,7 +20,9 @@ export default function Wishlist({ userId }) {
 
   const fetchWishlist = async () => {
     try {
-      const response = await fetch(`/api/wishlist?userId=${userId}`);
+      const response = await fetch(`/api/wishlist?userId=${userId}`, {
+        credentials: 'include'
+      });
       const data = await response.json();
       if (data.success) {
         setWishlist(data.wishlist);
@@ -35,7 +37,8 @@ export default function Wishlist({ userId }) {
   const removeFromWishlist = async (productId) => {
     try {
       const response = await fetch(`/api/wishlist?userId=${userId}&productId=${productId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -57,6 +60,7 @@ export default function Wishlist({ userId }) {
 
       const response = await fetch('/api/wishlist', {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
       });

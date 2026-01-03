@@ -23,7 +23,9 @@ export default function CrashCashManagement() {
     const fetchProducts = async () => {
         setLoading(true)
         try {
-            const response = await fetch('/api/admin/inventory?limit=1000')
+            const response = await fetch('/api/admin/inventory?limit=1000', {
+                credentials: 'include'
+            })
             const data = await response.json()
             if (data.success) {
                 setProducts(data.products || [])

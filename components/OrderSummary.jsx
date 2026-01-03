@@ -91,6 +91,7 @@ const OrderSummary = ({ totalPrice, items }) => {
 
             const response = await fetch('/api/orders/create', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`

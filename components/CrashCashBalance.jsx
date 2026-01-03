@@ -29,14 +29,18 @@ export default function CrashCashBalance() {
                 if (!userId) return
 
                 // Live balance
-                const balResp = await fetch(`/api/crashcash/balance?userId=${userId}`)
+                const balResp = await fetch(`/api/crashcash/balance?userId=${userId}`, {
+                    credentials: 'include'
+                })
                 if (balResp.ok) {
                     const b = await balResp.json()
                     if (mounted) setBalance(b.balance || 0)
                 }
 
                 // Rewards
-                const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`)
+                const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`, {
+                    credentials: 'include'
+                })
                 if (rewardsResp.ok) {
                     const data = await rewardsResp.json()
                     if (mounted) {

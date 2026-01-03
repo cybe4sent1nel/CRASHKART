@@ -262,7 +262,9 @@ export default function Checkout() {
         const loadServerCrashCash = async (user) => {
             if (!user?.id) return false
             try {
-                const resp = await fetch(`/api/crashcash/rewards?userId=${user.id}`)
+                const resp = await fetch(`/api/crashcash/rewards?userId=${user.id}`, {
+                    credentials: 'include'
+                })
                 if (resp.ok) {
                     const data = await resp.json()
                     const active = data.activeRewards || []

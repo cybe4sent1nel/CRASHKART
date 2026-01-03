@@ -26,7 +26,9 @@ export default function AdminManagementPage() {
       }
 
       try {
-        const res = await fetch('/api/admin/admins')
+        const res = await fetch('/api/admin/admins', {
+          credentials: 'include'
+        })
         if (res.ok) {
           const data = await res.json()
           setAdmins(data.admins)
@@ -53,6 +55,7 @@ export default function AdminManagementPage() {
     try {
       const res = await fetch('/api/admin/admins', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: newAdminEmail,
@@ -67,7 +70,9 @@ export default function AdminManagementPage() {
         setNewAdminEmail('')
         setNewAdminName('')
         // Refresh admins list
-        const refreshRes = await fetch('/api/admin/admins')
+        const refreshRes = await fetch('/api/admin/admins', {
+          credentials: 'include'
+        })
         if (refreshRes.ok) {
           const refreshData = await refreshRes.json()
           setAdmins(refreshData.admins)
@@ -90,7 +95,8 @@ export default function AdminManagementPage() {
 
     try {
       const res = await fetch(`/api/admin/admins/${adminId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       })
 
       const data = await res.json()

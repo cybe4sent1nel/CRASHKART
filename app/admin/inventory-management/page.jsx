@@ -19,7 +19,9 @@ export default function InventoryManagementPage() {
 
     const fetchProducts = async () => {
         try {
-            const response = await fetch('/api/admin/inventory?limit=500')
+            const response = await fetch('/api/admin/inventory?limit=500', {
+                credentials: 'include'
+            })
             if (response.ok) {
                 const data = await response.json()
                 setProducts(data.products || [])

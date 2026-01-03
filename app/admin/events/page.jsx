@@ -59,7 +59,9 @@ export default function AdminEventsPage() {
             if (filterType !== 'all') params.append('eventType', filterType)
             if (searchTerm) params.append('search', searchTerm)
 
-            const response = await fetch(`/api/admin/events?${params}`)
+            const response = await fetch(`/api/admin/events?${params}`, {
+                credentials: 'include'
+            })
             
             if (!response.ok) throw new Error('Failed to fetch events')
             

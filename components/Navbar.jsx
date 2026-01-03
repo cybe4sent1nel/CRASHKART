@@ -109,7 +109,9 @@ export default function Navbar() {
         const localMergedBalance = updateCrashCashBalance();
 
         if (parsed?.id) {
-          const resp = await fetch(`/api/crashcash/rewards?userId=${parsed.id}`);
+          const resp = await fetch(`/api/crashcash/rewards?userId=${parsed.id}`, {
+            credentials: 'include'
+          });
           if (resp.ok) {
             const data = await resp.json();
             const active = data.activeRewards || [];

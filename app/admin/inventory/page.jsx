@@ -70,7 +70,9 @@ export default function InventoryPage() {
             if (searchTerm) params.append('search', searchTerm)
             if (filterStatus !== 'all') params.append('stockStatus', filterStatus)
 
-            const response = await fetch(`/api/admin/inventory?${params}`)
+            const response = await fetch(`/api/admin/inventory?${params}`, {
+                credentials: 'include'
+            })
             
             if (!response.ok) throw new Error('Failed to fetch inventory')
             
@@ -93,6 +95,7 @@ export default function InventoryPage() {
         try {
             const response = await fetch('/api/admin/inventory', {
                 method: 'PUT',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     productId: productId,
@@ -125,6 +128,7 @@ export default function InventoryPage() {
         try {
             const response = await fetch('/api/admin/inventory', {
                 method: 'PUT',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     productId: editFullProduct.id,

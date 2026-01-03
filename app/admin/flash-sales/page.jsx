@@ -32,7 +32,9 @@ export default function FlashSalesPage() {
 
     const fetchSales = async () => {
         try {
-            const response = await fetch('/api/admin/flash-sales')
+            const response = await fetch('/api/admin/flash-sales', {
+                credentials: 'include'
+            })
             if (response.ok) {
                 const data = await response.json()
                 setSales(data)
@@ -46,7 +48,9 @@ export default function FlashSalesPage() {
 
     const fetchProducts = async () => {
         try {
-            const response = await fetch('/api/admin/inventory?limit=500')
+            const response = await fetch('/api/admin/inventory?limit=500', {
+                credentials: 'include'
+            })
             if (response.ok) {
                 const data = await response.json()
                 // Filter to only show in-stock products (quantity > 0)

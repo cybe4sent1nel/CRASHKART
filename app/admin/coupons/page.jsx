@@ -34,7 +34,9 @@ export default function AdminCoupons() {
     const fetchCoupons = async () => {
         setLoading(true)
         try {
-            const response = await fetch('/api/admin/coupons?status=all')
+            const response = await fetch('/api/admin/coupons?status=all', {
+                credentials: 'include'
+            })
             if (response.ok) {
                 const data = await response.json()
                 setCoupons(data.coupons || [])
@@ -138,6 +140,7 @@ export default function AdminCoupons() {
         try {
             const response = await fetch('/api/admin/coupons', {
                 method: 'DELETE',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })
             })

@@ -83,6 +83,7 @@ export default function AuthSync() {
                     try {
                         const tokenResponse = await fetch('/api/auth/generate-token', {
                             method: 'POST',
+                            credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 userId: session.user.id,
@@ -107,7 +108,9 @@ export default function AuthSync() {
                 // ✅ Sync CrashCash balance from database to localStorage
                 if (mergedUser.id) {
                     try {
-                        const balResp = await fetch(`/api/crashcash/balance?userId=${mergedUser.id}`)
+                        const balResp = await fetch(`/api/crashcash/balance?userId=${mergedUser.id}`, {
+                            credentials: 'include'
+                        })
                         if (balResp.ok) {
                             const balData = await balResp.json()
                             const dbBalance = balData.balance || 0

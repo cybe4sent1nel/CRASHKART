@@ -82,6 +82,7 @@ export default function CrashCashPage() {
                              try {
                                  const resp = await fetch('/api/crashcash/add', {
                                      method: 'POST',
+                                     credentials: 'include',
                                      headers: {
                                          'Content-Type': 'application/json',
                                          ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -114,7 +115,9 @@ export default function CrashCashPage() {
                  let cashOnly = []
 
                  try {
-                     const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`)
+                     const rewardsResp = await fetch(`/api/crashcash/rewards?userId=${userId}`, {
+                         credentials: 'include'
+                     })
 
                      if (rewardsResp.ok) {
                          const data = await rewardsResp.json()

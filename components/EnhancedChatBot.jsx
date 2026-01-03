@@ -27,7 +27,9 @@ export default function EnhancedChatBot() {
 
     const fetchOrders = async () => {
         try {
-            const response = await fetch('/api/orders/get-user-orders')
+            const response = await fetch('/api/orders/get-user-orders', {
+                credentials: 'include'
+            })
             const data = await response.json()
             if (data.success && data.orders) {
                 setOrders(data.orders)

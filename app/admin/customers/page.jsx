@@ -83,7 +83,9 @@ export default function CustomersPage() {
             if (filter === 'active') params.append('hasOrders', 'true')
             if (filter === 'inactive') params.append('hasOrders', 'false')
 
-            const response = await fetch(`/api/admin/customers?${params}`)
+            const response = await fetch(`/api/admin/customers?${params}`, {
+                credentials: 'include'
+            })
             
             console.log('Fetch response status:', response.status, response.statusText)
             

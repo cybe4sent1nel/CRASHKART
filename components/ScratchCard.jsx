@@ -217,6 +217,7 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                                  // Save discount coupon to database
                                  const couponResp = await fetch('/api/scratchcard', {
                                      method: 'POST',
+                                     credentials: 'include',
                                      headers: { 'Content-Type': 'application/json' },
                                      body: JSON.stringify({
                                          rewardType: 'discount',
@@ -265,6 +266,7 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                                          
                                          const bonusResp = await fetch('/api/crashcash/add', {
                                              method: 'POST',
+                                             credentials: 'include',
                                              headers,
                                              body: JSON.stringify({
                                                  amount: randomReward.bonusCrashcash,
@@ -310,6 +312,7 @@ export default function ScratchCard({ reward: initialReward, onReveal }) {
                                      
                                      const resp = await fetch('/api/crashcash/add', {
                                          method: 'POST',
+                                         credentials: 'include',
                                          headers,
                                          body: JSON.stringify({
                                              amount: crashcashToAdd,

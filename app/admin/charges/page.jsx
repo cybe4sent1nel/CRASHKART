@@ -24,7 +24,9 @@ export default function AdminCharges() {
   useEffect(() => {
     const fetchCharges = async () => {
       try {
-        const res = await fetch('/api/admin/charges')
+        const res = await fetch('/api/admin/charges', {
+            credentials: 'include'
+        })
         const data = await res.json()
                         if (data.success) setCharges(data.charges)
       } catch (e) {
@@ -55,6 +57,7 @@ export default function AdminCharges() {
 
       const res = await fetch('/api/admin/charges', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cleaned)
       })

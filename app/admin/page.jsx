@@ -154,7 +154,9 @@ export default function AdminDashboard() {
         try {
             setIsSyncingOrders(true)
             // Fetch real-time data from API
-            const response = await fetch('/api/admin/analytics?period=90')
+            const response = await fetch('/api/admin/analytics?period=90', {
+                credentials: 'include'
+            })
 
             if (!response.ok) {
                 throw new Error('Failed to fetch analytics')
@@ -211,7 +213,9 @@ export default function AdminDashboard() {
                 }
 
                 // Fetch products - ONLY from database, no dummy data
-                const productsResponse = await fetch('/api/admin/inventory')
+                const productsResponse = await fetch('/api/admin/inventory', {
+                    credentials: 'include'
+                })
                 let productsData = []
 
                 if (productsResponse.ok) {
