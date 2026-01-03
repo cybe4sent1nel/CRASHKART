@@ -8,6 +8,9 @@ export const dynamic = 'force-dynamic'
 
 const prisma = new PrismaClient()
 
+// Request lock to prevent concurrent duplicate requests
+const requestLocks = new Map()
+
 export async function POST(req) {
     try {
         console.log('\n🔵 /api/crashcash/add START');
