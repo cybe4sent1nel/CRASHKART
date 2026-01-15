@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "prisma generate",
     "seed": "node scripts/seed-products.js",
     "seed:fix-products": "node scripts/fixProductData.js",
     "expire-crashcash": "node scripts/expire-crashcash.js",
