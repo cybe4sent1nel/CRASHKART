@@ -22,7 +22,7 @@ model User {
     id               String    @id @default(uuid()) @map("_id") @db.String
     name             String?
     email            String?   @unique
-    phone            String?   @unique
+    phone            String?
     password         String?
     image            String?
     cart             Json      @default("{}")
@@ -43,6 +43,8 @@ model User {
     buyerOrders   Order[]        @relation("BuyerRelation")
     otpSessions   OTPSession[]
     notifications Notification[]
+
+    @@index([phone])
 }
 
 // Required for creating a Product: name, description, mrp, price, images, category, storeId
