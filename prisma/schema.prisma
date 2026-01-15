@@ -97,7 +97,7 @@ model Order {
     id            String        @id @default(auto()) @map("_id") @db.ObjectId
     total         Float
     status        OrderStatus   @default(ORDER_PLACED)
-    userId        String        @db.ObjectId
+    userId          String        @db.String
     storeId       String        @db.ObjectId
     addressId     String        @db.ObjectId
     isPaid        Boolean       @default(false)
@@ -150,7 +150,7 @@ model Rating {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     rating    Int
     review    String
-    userId    String   @db.ObjectId
+    userId          String   @db.String
     productId String   @db.ObjectId
     orderId   String   @db.ObjectId
     images    String[] @default([]) // Array of image URLs
@@ -168,7 +168,7 @@ model Rating {
 // Required for creating an Address: userId, name, email, street, city, state, zip, country, phone
 model Address {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId    String   @db.ObjectId
+    userId          String   @db.String
     name      String
     email     String
     street    String
@@ -217,7 +217,7 @@ model Coupon {
 // Required for creating a Store: userId, name, username, email, contact, logo, description, address (optional: , status, isActive)
 model Store {
     id          String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId      String   @unique @db.ObjectId
+    userId          String   @unique @db.String
     name        String
     description String
     username    String   @unique
@@ -238,7 +238,7 @@ model Store {
 // OTP Sessions for authentication
 model OTPSession {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId    String   @db.ObjectId
+    userId          String   @db.String
     otp       String
     method    String   // "email" or "whatsapp"
     contact   String   // email or phone
@@ -255,7 +255,7 @@ model OTPSession {
 // Notifications for users
 model Notification {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId    String   @db.ObjectId
+    userId          String   @db.String
     title     String
     message   String
     type      String   @default("info") // info, success, warning, error
@@ -349,7 +349,7 @@ model Referral {
 model ReturnRequest {
     id               String   @id @default(auto()) @map("_id") @db.ObjectId
     orderId          String   @unique @db.ObjectId
-    userId           String   @db.ObjectId
+    userId          String   @db.String
     productId        String   @db.ObjectId
     quantity         Int
     issue            String   // Issue category: defective, wrong-item, not-as-described, damaged, other
@@ -462,7 +462,7 @@ model ChatMessage {
 model Complaint {
     id            String   @id @default(auto()) @map("_id") @db.ObjectId
     orderId       String?  @unique @db.ObjectId // Optional - linked to specific order
-    userId        String   @db.ObjectId
+    userId          String   @db.String
     subject       String
     description   String
     category      String   // return, refund, damaged, wrong-item, delivery, quality, other
@@ -582,7 +582,7 @@ model NewsletterSubscription {
     id            String   @id @default(auto()) @map("_id") @db.ObjectId
     email         String   @unique
     name          String   @default("Subscriber")
-    userId        String?  @db.ObjectId // Optional link to user
+    userId          String?  @db.String // Optional link to user
     isSubscribed  Boolean  @default(true)
     subscribeFreq String   @default("weekly") // daily, weekly, monthly
     interests     String[] @default([]) // product categories of interest
@@ -615,7 +615,7 @@ model AdminAccessRequest {
 // User Feedback
 model UserFeedback {
     id              String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId          String?  @db.ObjectId
+    userId          String?  @db.String
     userEmail       String
     userName        String?
     feedbackType    String   // "product" or "app"
@@ -638,7 +638,7 @@ model UserFeedback {
 // Inactive User Tracking
 model InactiveUserAlert {
     id              String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId          String   @unique @db.ObjectId
+    userId          String   @unique @db.String
     userEmail       String   @unique
     userName        String?
     lastOrderDate   DateTime?
@@ -658,7 +658,7 @@ model InactiveUserAlert {
 // Scratch Card for users - stores rewards/coupons won from scratch cards
 model ScratchCard {
     id              String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId          String   @db.ObjectId
+    userId          String   @db.String
     rewardType      String   // "discount", "cashback", "free-shipping", "voucher"
     rewardValue     Float    // Discount amount or percentage
     rewardCode      String?  // Coupon code if applicable
@@ -675,7 +675,7 @@ model ScratchCard {
 // Cart Items - stores individual cart items per user
 model CartItem {
     id              String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId          String   @db.ObjectId
+    userId          String   @db.String
     productId       String   @db.ObjectId
     quantity        Int
     price           Float    // Price at time of adding to cart
@@ -689,7 +689,7 @@ model CartItem {
 // User Coupons - tracks which coupons each user has
 model UserCoupon {
     id              String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId          String   @db.ObjectId
+    userId          String   @db.String
     couponCode      String
     isUsed          Boolean  @default(false)
     usedAt          DateTime?
@@ -729,7 +729,7 @@ model SellerQuery {
 // ChatBot Messages - for support chat with media
 model ChatBotMessage {
      id              String   @id @default(auto()) @map("_id") @db.ObjectId
-     userId          String   @db.ObjectId
+     userId          String   @db.String
      message         String?
      messageType     String   @default("text") // text, image, video
      mediaUrl        String?  // URL to image or video
@@ -769,7 +769,7 @@ model OutOfStockNotification {
 // Support Conversation - stores chat history for customer support
 model SupportConversation {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId    String   @unique @db.ObjectId
+    userId          String   @unique @db.String
     messages  Json     @default("[]") // Array of message objects
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -780,7 +780,7 @@ model SupportConversation {
 // CrashCash Rewards - tracks all scratch card rewards earned by users
 model CrashCashReward {
     id               String    @id @default(auto()) @map("_id") @db.ObjectId
-    userId           String    @db.ObjectId
+    userId          String    @db.String
     orderId          String?   @db.ObjectId
     scratchSessionId String?   // Unique ID for scratch card session to prevent duplicates
     amount           Float     // Reward amount earned
@@ -798,3 +798,4 @@ model CrashCashReward {
     @@index([status])
     @@index([earnedAt])
 }
+
