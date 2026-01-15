@@ -100,9 +100,15 @@ function formatPhoneForTwilio(phone) {
     return cleanPhone.startsWith('+') ? cleanPhone : '+' + cleanPhone;
 }
 
-function generateObjectId() {
-    // Generate a MongoDB ObjectId-compatible string (24 hex characters)
-    return crypto.randomBytes(12).toString('hex');
+function generateTempUserId() {
+    // Generate a UUID for temporary user IDs (matches User.id schema)
+    // Fallback to ObjectId format if UUID generation fails
+    try {
+        return crypto.randomUUID();
+    } catch (error) {
+        console.warn('UUID generation failed, falling back to ObjectId format:', error.message);
+        return crypto.randomBytes(12).toString('hex');
+    }
 }
 
 export async function POST(request) {
@@ -158,7 +164,7 @@ export async function POST(request) {
             // Create OTP session (will fail if duplicate unexpired OTP exists)
             const otpSession = await client.OTPSession.create({
                 data: {
-                    userId: user?.id || generateObjectId(), // Use temp ID if user doesn't exist
+                    userId: user?.id || generateTempUserId(), // Use temp UUID if user doesn't exist
                     otp,
                     method,
                     contact,
