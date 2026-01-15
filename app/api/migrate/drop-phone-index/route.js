@@ -7,16 +7,6 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    // Add a secret key check for security
-    const { secret } = await request.json();
-    
-    if (secret !== process.env.MIGRATION_SECRET) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     console.log('Dropping unique index on phone field...');
     
     await prisma.$runCommandRaw({
