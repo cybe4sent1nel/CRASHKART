@@ -22,19 +22,12 @@
 ---
 
 
+
 ## 🎬 Platform Demo
 
-<div align="center">
-   <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
-      <iframe src="https://player.vimeo.com/video/1123194869?h=33ca985438"
-         style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
-         frameborder="0"
-         allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
-         allowfullscreen
-         title="CrashKart Platform Demo"></iframe>
-   </div>
-   <p><em>Watch CrashKart in action - Full platform walkthrough</em></p>
-</div>
+[![Watch CrashKart Demo](https://vumbnail.com/1123194869.jpg)](https://vimeo.com/1123194869)
+<br>
+*Watch CrashKart in action – Full platform walkthrough*
 
 ---
 
