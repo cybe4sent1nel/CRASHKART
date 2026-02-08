@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { sendWelcomeEmail } from '@/lib/email';
 import { generateUserToken } from '@/lib/authTokens';
 import { createCrashCashReward } from '@/lib/rewards';
@@ -63,7 +64,7 @@ export async function POST(request) {
         let isNewUser = false;
         if (!user) {
             isNewUser = true;
-            const id = require('crypto').randomUUID();
+            const id = crypto.randomUUID();
             user = await prisma.user.create({
                 data: {
                     id,

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getCurrentSession } from '@/lib/session'
 import { NextResponse } from 'next/server'
+import crypto from 'crypto'
 
 // Prevent Next.js from attempting to pre-render this route
 export const dynamic = 'force-dynamic'
@@ -69,7 +70,7 @@ export async function POST(request) {
                 // Create new user with googleId
                 const newUser = await prisma.user.create({
                     data: {
-                        id: require('crypto').randomUUID(),
+                        id: crypto.randomUUID(),
                         email: userEmail,
                         name: name || userEmail.split('@')[0],
                         image: image || null,
@@ -99,7 +100,7 @@ export async function POST(request) {
                     ...(name && { name })
                 },
                 create: {
-                    id: require('crypto').randomUUID(),
+                    id: crypto.randomUUID(),
                     email: userEmail,
                     name: name || userEmail.split('@')[0],
                     image: image || null,

@@ -28,7 +28,7 @@ export async function POST(request) {
         if (!demoUser) {
             demoUser = await prisma.user.create({
                 data: {
-                    id: require('crypto').randomUUID(),
+                    id: crypto.randomUUID(),
                     email: 'demo@crashkart.com',
                     name: 'Demo User',
                     isEmailVerified: true,
