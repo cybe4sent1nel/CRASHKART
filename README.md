@@ -25,9 +25,16 @@
 
 ## 🎬 Platform Demo
 
-[![Watch CrashKart Demo](https://vumbnail.com/1123194869.jpg)](https://vimeo.com/1123194869)
-<br>
-*Watch CrashKart in action – Full platform walkthrough*
+<div align="center">
+   <a href="https://vimeo.com/1162922078" style="display:inline-block; position:relative;">
+      <span style="display:inline-block; position:relative;">
+         <img src="https://vumbnail.com/1162922078.jpg" alt="Watch CrashKart Demo" style="display:block;">
+         <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Circle-icons-play.svg" alt="Play" style="position:absolute; top:50%; left:50%; width:64px; height:64px; transform:translate(-50%,-50%); opacity:0.85; pointer-events:none;">
+      </span>
+   </a>
+   <br>
+   <em>Watch CrashKart in action – Full platform walkthrough</em>
+</div>
 
 ---
 
