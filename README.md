@@ -24,9 +24,10 @@
 ## � Platform Demo
 
 <div align="center">
-  <video src="assets/xathonfinal.mp4" width="100%" controls>
-    Your browser does not support the video tag.
-  </video>
+  <!-- Vimeo embed: responsive -->
+  <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+    <iframe src="https://player.vimeo.com/video/1123194869?h=33ca985438" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" allowfullscreen title="vimeo-player"></iframe>
+  </div>
   <p><em>Watch CrashKart in action - Full platform walkthrough</em></p>
 </div>
 
