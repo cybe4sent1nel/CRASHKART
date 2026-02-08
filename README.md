@@ -21,7 +21,18 @@
 
 ---
 
-## 🎯 About CrashKart
+## � Platform Demo
+
+<div align="center">
+  <video src="assets/xathonfinal.mp4" width="100%" controls>
+    Your browser does not support the video tag.
+  </video>
+  <p><em>Watch CrashKart in action - Full platform walkthrough</em></p>
+</div>
+
+---
+
+## �🎯 About CrashKart
 
 CrashKart isn't just another e-commerce platform—it's a complete shopping ecosystem designed specifically for electronics and gadget enthusiasts. Built from the ground up with modern web technologies, it combines blazing-fast performance with an intuitive user experience that makes online shopping genuinely enjoyable.
 
