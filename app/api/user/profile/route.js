@@ -76,6 +76,7 @@ export async function PUT(req) {
             console.log('[PUT /api/user/profile] Creating new user with email:', email);
             const newUser = await prisma.user.create({
                 data: {
+                    id: require('crypto').randomUUID(),
                     email,
                     name: name || 'User',
                     phone: phone || '',

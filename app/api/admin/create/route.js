@@ -28,14 +28,23 @@ export async function POST(request) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10)
 
-        // Create admin user
-        const admin = await prisma.user.create({
+        // Create user account first
+        const user = await prisma.user.create({
             data: {
+                id: require('crypto').randomUUID(),
                 name,
                 email,
                 password: hashedPassword,
-                isAdmin: true,
                 isProfileSetup: true
+            }
+        })
+
+        // Create admin record
+        await prisma.admin.create({
+            data: {
+                email: user.email,
+                name: user.name,
+                addedBy: null
             }
         })
 
@@ -43,9 +52,9 @@ export async function POST(request) {
             { 
                 message: "Admin created successfully",
                 user: {
-                    id: admin.id,
-                    name: admin.name,
-                    email: admin.email
+                    id: user.id,
+                    name: user.name,
+                    email: user.email
                 }
             },
             { status: 201 }

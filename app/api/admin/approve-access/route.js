@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { sendAdminApprovedEmail, sendAdminRejectedEmail } from '@/lib/email'
-
-const MAIN_ADMIN_EMAIL = 'crashkart.help@gmail.com'
+import { getSuperAdminEmails } from '@/lib/adminAuth'
 
 export async function GET(request) {
     try {
@@ -48,10 +47,13 @@ export async function GET(request) {
                 )
             }
 
-            // Escalate user to admin role
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { role: 'admin' }
+            // Create Admin record for user
+            await prisma.admin.create({
+                data: {
+                    email: user.email,
+                    name: user.name,
+                    addedBy: null
+                }
             })
 
             // Update request status to approved
@@ -60,7 +62,7 @@ export async function GET(request) {
                 data: {
                     status: 'approved',
                     reviewedAt: new Date(),
-                    reviewedBy: MAIN_ADMIN_EMAIL
+                    reviewedBy: getSuperAdminEmails()[0]
                 }
             })
 
@@ -68,7 +70,7 @@ export async function GET(request) {
             const loginLink = `${process.env.NEXT_PUBLIC_APP_URL}/admin/login`
             await sendAdminApprovedEmail(accessRequest.email, {
                 loginLink,
-                mainAdminEmail: MAIN_ADMIN_EMAIL
+                mainAdminEmail: getSuperAdminEmails()[0]
             })
 
             return new Response(
@@ -102,13 +104,13 @@ export async function GET(request) {
                 data: {
                     status: 'rejected',
                     reviewedAt: new Date(),
-                    reviewedBy: MAIN_ADMIN_EMAIL
+                    reviewedBy: getSuperAdminEmails()[0]
                 }
             })
 
             // Send rejection email to requester
             await sendAdminRejectedEmail(accessRequest.email, {
-                mainAdminEmail: MAIN_ADMIN_EMAIL
+                mainAdminEmail: getSuperAdminEmails()[0]
             })
 
             return new Response(

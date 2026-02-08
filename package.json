@@ -14,6 +14,7 @@
     "seed:fix-products": "node scripts/fixProductData.js",
     "expire-crashcash": "node scripts/expire-crashcash.js",
     "migrate:unified-storage": "node scripts/migrate-to-unified-storage.js",
+    "init:super-admins": "node scripts/init-super-admins.js",
     "prisma:generate": "prisma generate",
     "prisma:reset": "prisma migrate reset",
     "prisma:seed": "node prisma/seed.js",

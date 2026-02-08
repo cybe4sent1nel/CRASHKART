@@ -74,28 +74,42 @@ export async function POST(request) {
 
         // If user doesn't exist (signup flow), create them then credit welcome bonus as reward
         if (!user) {
-            user = await client.user.create({
-                data: {
-                    id: userId,
-                    email: normalizedEmail,
-                    phone: otpSession.method === 'whatsapp' ? otpSession.contact : null,
-                    name: '',
-                    isProfileSetup: false,
-                    loginMethod: otpSession.method === 'email' ? 'email' : 'whatsapp',
-                    crashCashBalance: 0
-                },
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    image: true,
-                    isProfileSetup: true,
-                    loginMethod: true,
-                    createdAt: true,
-                    crashCashBalance: true
+            // Check if user already exists by email/phone before creating
+            const existingUser = await client.user.findFirst({
+                where: {
+                    OR: [
+                        normalizedEmail ? { email: normalizedEmail } : {},
+                        otpSession.method === 'whatsapp' && otpSession.contact ? { phone: otpSession.contact } : {}
+                    ].filter(obj => Object.keys(obj).length > 0)
                 }
             });
+
+            if (existingUser) {
+                user = existingUser;
+            } else {
+                user = await client.user.create({
+                    data: {
+                        id: userId,
+                        email: normalizedEmail,
+                        phone: otpSession.method === 'whatsapp' ? otpSession.contact : null,
+                        name: '',
+                        isProfileSetup: false,
+                        loginMethod: otpSession.method === 'email' ? 'email' : 'whatsapp',
+                        crashCashBalance: 0
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        phone: true,
+                        image: true,
+                        isProfileSetup: true,
+                        loginMethod: true,
+                        createdAt: true,
+                        crashCashBalance: true
+                    }
+                });
+            }
 
             // Credit welcome bonus via reward so balance and rewards page stay in sync
             try {
